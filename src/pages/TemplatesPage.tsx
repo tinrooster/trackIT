@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import * as React from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2, Copy } from "lucide-react";
 import { ItemTemplate } from '@/types/templates';
@@ -19,38 +20,41 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { TemplateForm } from '@/components/TemplateForm';
 import { useNavigate } from 'react-router-dom';
-
-// Mock data - replace with actual data fetching
-const mockTemplates: ItemTemplate[] = [
-  {
-    templateId: "1",
-    templateName: "Basic Electronic Component",
-    name: "Component",
-    description: "Standard electronic component template",
-    quantity: 0,
-    unit: "pcs",
-    category: "Electronics",
-    minQuantity: 10,
-    costPerUnit: 0,
-    price: 0,
-    location: "",
-    barcode: "",
-    notes: "",
-    supplier: "",
-    supplierWebsite: "",
-    project: "",
-    reorderLevel: 5,
-    orderStatus: "not_ordered",
-    deliveryPercentage: 0
-  }
-];
+import { getTemplates, saveTemplates } from '@/lib/storageService';
+import { v4 as uuidv4 } from 'uuid';
+import { AddItemDialog } from '@/components/AddItemDialog';
+import { getSettings } from '@/lib/storageService';
 
 export function TemplatesPage() {
-  const [templates, setTemplates] = useState<ItemTemplate[]>(mockTemplates);
+  const [templates, setTemplates] = useState<ItemTemplate[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ItemTemplate | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Load settings for AddItemDialog
+  const categories = getSettings('CATEGORIES');
+  const units = getSettings('UNITS');
+  const locations = getSettings('LOCATIONS');
+  const suppliers = getSettings('SUPPLIERS');
+  const projects = getSettings('PROJECTS');
+
+  // Load templates on component mount
+  useEffect(() => {
+    try {
+      const loadedTemplates = getTemplates();
+      console.log('Loaded templates:', loadedTemplates);
+      setTemplates(loadedTemplates);
+    } catch (error) {
+      console.error('Error loading templates:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load templates",
+        variant: "destructive",
+      });
+    }
+  }, []);
 
   const handleCreateTemplate = () => {
     setSelectedTemplate(null);
@@ -63,29 +67,78 @@ export function TemplatesPage() {
   };
 
   const handleDeleteTemplate = (templateId: string) => {
-    setTemplates(templates.filter(t => t.templateId !== templateId));
-    toast({
-      title: "Template Deleted",
-      description: "The template has been successfully deleted.",
-    });
+    try {
+      const newTemplates = templates.filter(t => t.templateId !== templateId);
+      saveTemplates(newTemplates);
+      setTemplates(newTemplates);
+      toast({
+        title: "Template Deleted",
+        description: "The template has been successfully deleted.",
+      });
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete template",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleUseTemplate = (template: ItemTemplate) => {
-    // Navigate to create item page with template data
-    navigate('/inventory/new', { state: { template } });
+    setSelectedTemplate(template);
+    setIsAddItemDialogOpen(true);
+  };
+
+  const handleAddItem = async (newItemData: any) => {
+    try {
+      // Navigate to inventory page after successful addition
+      navigate('/inventory', { state: { newItem: newItemData } });
+    } catch (error) {
+      console.error('Error adding item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add item",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSubmitTemplate = (templateData: ItemTemplate) => {
-    if (selectedTemplate) {
-      // Update existing template
-      setTemplates(templates.map(t => 
-        t.templateId === templateData.templateId ? templateData : t
-      ));
-    } else {
-      // Add new template
-      setTemplates([...templates, templateData]);
+    try {
+      let newTemplates: ItemTemplate[];
+      
+      if (selectedTemplate) {
+        // Update existing template
+        newTemplates = templates.map(t => 
+          t.templateId === templateData.templateId ? templateData : t
+        );
+      } else {
+        // Add new template with generated ID
+        const newTemplate = {
+          ...templateData,
+          templateId: uuidv4(),
+        };
+        newTemplates = [...templates, newTemplate];
+      }
+
+      // Save to storage and update state
+      saveTemplates(newTemplates);
+      setTemplates(newTemplates);
+      setIsCreateDialogOpen(false);
+
+      toast({
+        title: selectedTemplate ? "Template Updated" : "Template Created",
+        description: `Template has been ${selectedTemplate ? 'updated' : 'created'} successfully.`,
+      });
+    } catch (error) {
+      console.error('Error saving template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save template",
+        variant: "destructive",
+      });
     }
-    setIsCreateDialogOpen(false);
   };
 
   return (
@@ -160,6 +213,18 @@ export function TemplatesPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <AddItemDialog
+        open={isAddItemDialogOpen}
+        onOpenChange={setIsAddItemDialogOpen}
+        onSubmit={handleAddItem}
+        categories={categories}
+        units={units}
+        locations={locations}
+        suppliers={suppliers}
+        projects={projects}
+        selectedTemplate={selectedTemplate}
+      />
     </div>
   );
 } 

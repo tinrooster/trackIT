@@ -1,4 +1,6 @@
-import { InventoryItem } from "@/types/inventory";
+import { InventoryItem, ItemWithSubcategories } from "@/types/inventory";
+import { ItemTemplate } from '@/types/templates';
+import { CategoryNode } from '@/types/inventory';
 
 // Helper to parse date strings back into Date objects
 const parseItemDates = (item: any): InventoryItem => {
@@ -48,26 +50,145 @@ export const STORAGE_KEYS = {
   PROJECTS: 'inventory-projects',
   ITEMS: 'inventoryItems',
   HISTORY: 'inventoryHistory',
+  TEMPLATES: 'inventory-templates',
   GENERAL_SETTINGS: 'inventory-general-settings',
   USERS: 'users',
 };
 
+interface Settings {
+  categories: ItemWithSubcategories[];
+  units: ItemWithSubcategories[];
+  locations: ItemWithSubcategories[];
+  suppliers: ItemWithSubcategories[];
+  projects: ItemWithSubcategories[];
+}
+
 // Get settings from localStorage
-export const getSettings = (key: string): string[] => {
+export const getSettings = (): Settings => {
   try {
-    const settings = localStorage.getItem(STORAGE_KEYS[key as keyof typeof STORAGE_KEYS] || key);
-    return settings ? JSON.parse(settings) : [];
+    const settings: Settings = {
+      categories: [],
+      units: [],
+      locations: [],
+      suppliers: [],
+      projects: []
+    };
+
+    // Load each setting
+    Object.entries(STORAGE_KEYS).forEach(([key, storageKey]) => {
+      if (['CATEGORIES', 'UNITS', 'LOCATIONS', 'SUPPLIERS', 'PROJECTS'].includes(key)) {
+        const valuesJson = localStorage.getItem(storageKey);
+        if (valuesJson) {
+          const values = JSON.parse(valuesJson);
+          
+          // Convert old string[] format to ItemWithSubcategories[]
+          if (Array.isArray(values)) {
+            if (values.length > 0) {
+              if (typeof values[0] === 'string') {
+                // Convert old string[] format to new format
+                const newFormat = values.map((name: string) => ({
+                  id: crypto.randomUUID(),
+                  name,
+                  subcategories: []
+                }));
+                settings[key.toLowerCase() as keyof Settings] = newFormat;
+                // Save in new format
+                localStorage.setItem(storageKey, JSON.stringify(newFormat));
+              } else {
+                // Already in new format
+                settings[key.toLowerCase() as keyof Settings] = values;
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return settings;
   } catch (error) {
-    console.error(`Error getting ${key} from localStorage:`, error);
-    return [];
+    console.error('Error getting settings from localStorage:', error);
+    return {
+      categories: [],
+      units: [],
+      locations: [],
+      suppliers: [],
+      projects: []
+    };
   }
 };
 
 // Save settings to localStorage
-export const saveSettings = (key: string, values: string[]): void => {
+export const saveSettings = (settings: Settings): void => {
   try {
-    localStorage.setItem(STORAGE_KEYS[key as keyof typeof STORAGE_KEYS] || key, JSON.stringify(values));
+    Object.entries(settings).forEach(([key, values]) => {
+      const storageKey = STORAGE_KEYS[key.toUpperCase() as keyof typeof STORAGE_KEYS];
+      if (storageKey) {
+        localStorage.setItem(storageKey, JSON.stringify(values));
+      }
+    });
   } catch (error) {
-    console.error(`Error saving ${key} to localStorage:`, error);
+    console.error('Error saving settings to localStorage:', error);
+  }
+};
+
+// Save templates to localStorage
+export const saveTemplates = (templates: ItemTemplate[]): void => {
+  try {
+    console.log('Saving templates:', templates);
+    if (!Array.isArray(templates)) {
+      console.error('Templates must be an array');
+      return;
+    }
+    
+    // Ensure we're saving valid template data
+    const validTemplates = templates.filter(template => 
+      template && 
+      typeof template === 'object' && 
+      template.templateId && 
+      template.templateName
+    );
+    
+    const serializedTemplates = JSON.stringify(validTemplates);
+    localStorage.setItem(STORAGE_KEYS.TEMPLATES, serializedTemplates);
+    
+    // Verify the save
+    const savedData = localStorage.getItem(STORAGE_KEYS.TEMPLATES);
+    console.log('Verified saved templates:', savedData);
+  } catch (error) {
+    console.error('Error saving templates to localStorage:', error);
+    throw error;
+  }
+};
+
+// Get templates from localStorage
+export const getTemplates = (): ItemTemplate[] => {
+  try {
+    const templatesJson = localStorage.getItem(STORAGE_KEYS.TEMPLATES);
+    console.log('Raw templates from storage:', templatesJson);
+    
+    if (!templatesJson) {
+      console.log('No templates found in storage');
+      return [];
+    }
+    
+    const templates = JSON.parse(templatesJson);
+    if (!Array.isArray(templates)) {
+      console.error('Stored templates is not an array');
+      return [];
+    }
+    
+    // Validate template structure
+    const validTemplates = templates.filter(template => 
+      template && 
+      typeof template === 'object' && 
+      template.templateId && 
+      template.templateName
+    );
+    
+    console.log('Valid templates loaded:', validTemplates);
+    return validTemplates;
+  } catch (error) {
+    console.error('Error getting templates from localStorage:', error);
+    return [];
   }
 };

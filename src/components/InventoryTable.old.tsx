@@ -11,6 +11,8 @@ import { InventoryItem } from "@/types/inventory";
 import { format } from "date-fns";
 import { Pencil, ArrowUpDown, FileDown, DollarSign, LayoutList, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { exportToExcel } from "@/lib/exportUtils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -168,24 +170,16 @@ export function InventoryTable({
           <div className="text-sm text-muted-foreground">
             {finalFilteredItems.length} {finalFilteredItems.length === 1 ? 'item' : 'items'} found
           </div>
-          <Button
-            variant="default"
-            size="default"
-            onClick={() => setIsDetailedView(!isDetailedView)}
-            className="gap-2 min-w-[140px] bg-secondary hover:bg-secondary/80"
-          >
-            {isDetailedView ? (
-              <>
-                <LayoutGrid className="h-4 w-4" />
-                Simple View
-              </>
-            ) : (
-              <>
-                <LayoutList className="h-4 w-4" />
-                Detailed View
-              </>
-            )}
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="view-mode"
+              checked={isDetailedView}
+              onCheckedChange={setIsDetailedView}
+            />
+            <Label htmlFor="view-mode" className="text-sm">
+              {isDetailedView ? 'Detailed View' : 'Simple View'}
+            </Label>
+          </div>
         </div>
         <Button onClick={handleExportCurrentView} variant="outline" size="default" className="w-full sm:w-auto">
           <FileDown className="mr-2 h-4 w-4" />
@@ -258,8 +252,6 @@ export function InventoryTable({
                       );
                     } else if (key === 'costPerUnit' || key === 'totalValue') {
                       displayValue = formatCurrency(value as number | undefined);
-                    } else if (key === 'quantity') {
-                      displayValue = `${value} ${item.unit || ''}`;
                     } else {
                       displayValue = String(value);
                     }

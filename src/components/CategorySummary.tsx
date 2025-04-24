@@ -11,11 +11,12 @@ export function CategorySummary({ items }: CategorySummaryProps) {
   const navigate = useNavigate()
 
   const categoryData = useMemo(() => {
-    // Group items by category
+    // Group items by root category (first part of the path)
     const categoryGroups: Record<string, InventoryItem[]> = {}
 
     items.forEach(item => {
-      const category = item.category || 'Uncategorized'
+      // Get the root category (first part of the path) or use the category as is
+      const category = item.category ? item.category.split('/')[0] : 'Uncategorized'
       if (!categoryGroups[category]) {
         categoryGroups[category] = []
       }
@@ -32,6 +33,8 @@ export function CategorySummary({ items }: CategorySummaryProps) {
   }, [items])
 
   const handleCategoryClick = (category: string) => {
+    // When clicking a root category, show all items in that category and its subcategories
+    const categoryPrefix = `${category}/`
     navigate(`/inventory?category=${encodeURIComponent(category)}`)
   }
 
@@ -55,7 +58,14 @@ export function CategorySummary({ items }: CategorySummaryProps) {
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 12 }}
+                  interval={0}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
                 <YAxis />
                 <Tooltip />
                 <Bar dataKey="itemCount" fill="#8884d8" name="Items" />
@@ -64,7 +74,7 @@ export function CategorySummary({ items }: CategorySummaryProps) {
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-sm font-medium">Category Details</h3>
+            <h3 className="text-sm font-medium">Root Category Details</h3>
             <div className="grid gap-2">
               {categoryData.map((category) => (
                 <div

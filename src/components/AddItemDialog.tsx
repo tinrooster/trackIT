@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AddItemForm } from "@/components/AddItemForm";
-import { InventoryItem } from "@/types/inventory";
-import { getSettings } from "@/lib/storageService";
+import { InventoryItem, CategoryNode } from "@/types/inventory";
+import { getTemplates } from "@/lib/storageService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -20,11 +20,12 @@ interface AddItemDialogProps {
   onSubmit: (item: Omit<InventoryItem, 'id' | 'lastUpdated'>) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  categories: string[];
+  categories: CategoryNode[];
   units: string[];
   locations: string[];
   suppliers: string[];
   projects: string[];
+  selectedTemplate?: Template | null;
 }
 
 export function AddItemDialog({ 
@@ -35,31 +36,107 @@ export function AddItemDialog({
   units,
   locations,
   suppliers,
-  projects 
+  projects,
+  selectedTemplate: externalSelectedTemplate 
 }: AddItemDialogProps) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"new" | "template">("new");
+  const [formValues, setFormValues] = useState<Omit<InventoryItem, 'id' | 'lastUpdated'> | undefined>(undefined);
+  const [lastAction, setLastAction] = useState<string>("");
 
   useEffect(() => {
-    const loadedTemplates = getSettings("inventoryTemplates") || [];
-    if (Array.isArray(loadedTemplates)) {
-      setTemplates(loadedTemplates.map(template => {
-        if (typeof template === 'object' && template !== null) {
-          return template as Template;
+    if (open) {
+      console.error('[DEBUG] Dialog opened');
+      try {
+        const loadedTemplates = getTemplates();
+        console.error('[DEBUG] Templates loaded:', loadedTemplates);
+        
+        if (Array.isArray(loadedTemplates)) {
+          const validTemplates = loadedTemplates
+            .map(template => {
+              if (typeof template === 'object' && template !== null && template.templateName) {
+                return template as Template;
+              }
+              console.error('[DEBUG] Invalid template found:', template);
+              return null;
+            })
+            .filter((t): t is Template => t !== null);
+          
+          console.error('[DEBUG] Valid templates:', validTemplates);
+          setTemplates(validTemplates);
+        } else {
+          console.error('[DEBUG] Loaded templates is not an array:', loadedTemplates);
+          setTemplates([]);
         }
-        return null;
-      }).filter((t): t is Template => t !== null));
+      } catch (error) {
+        console.error('[DEBUG] Error loading templates:', error);
+        toast.error('Failed to load templates');
+        setTemplates([]);
+      }
     }
-  }, []);
+  }, [open]);
+
+  useEffect(() => {
+    if (externalSelectedTemplate) {
+      const templateValues = {
+        name: externalSelectedTemplate.name,
+        description: externalSelectedTemplate.description,
+        quantity: 0,
+        minQuantity: externalSelectedTemplate.minQuantity,
+        unit: externalSelectedTemplate.unit,
+        costPerUnit: externalSelectedTemplate.costPerUnit,
+        category: externalSelectedTemplate.category,
+        location: externalSelectedTemplate.location,
+        supplier: externalSelectedTemplate.supplier,
+        supplierWebsite: externalSelectedTemplate.supplierWebsite,
+        project: externalSelectedTemplate.project,
+        notes: externalSelectedTemplate.notes,
+        orderStatus: externalSelectedTemplate.orderStatus,
+        deliveryPercentage: externalSelectedTemplate.deliveryPercentage
+      };
+      setFormValues(templateValues);
+      setSelectedTemplate(externalSelectedTemplate);
+      setActiveTab("new");
+    }
+  }, [externalSelectedTemplate]);
 
   const handleTemplateSelect = (templateName: string) => {
-    const template = templates.find(t => t.templateName === templateName);
-    setSelectedTemplate(template || null);
-    if (template) {
-      setActiveTab("new"); // Switch to the form tab after selecting a template
+    console.error('[DEBUG] Template selected:', templateName);
+    const selectedTemplate = templates.find(t => t.templateName === templateName);
+    if (selectedTemplate) {
+      console.error('[DEBUG] Found template:', selectedTemplate);
+      setSelectedTemplate(selectedTemplate);
+      const newFormValues = {
+        name: selectedTemplate.name,
+        description: selectedTemplate.description,
+        quantity: 0,
+        minQuantity: selectedTemplate.minQuantity,
+        unit: selectedTemplate.unit,
+        costPerUnit: selectedTemplate.costPerUnit,
+        category: selectedTemplate.category,
+        location: selectedTemplate.location,
+        supplier: selectedTemplate.supplier,
+        supplierWebsite: selectedTemplate.supplierWebsite,
+        project: selectedTemplate.project,
+        notes: selectedTemplate.notes,
+        orderStatus: selectedTemplate.orderStatus,
+        deliveryPercentage: selectedTemplate.deliveryPercentage
+      };
+      console.error('[DEBUG] Setting form values:', newFormValues);
+      setFormValues(newFormValues);
+      setActiveTab("new");
       toast.success(`Template "${templateName}" loaded`);
+    }
+  };
+
+  const handleTabChange = (value: string) => {
+    console.error('[DEBUG] Tab changed to:', value);
+    setActiveTab(value as "new" | "template");
+    if (value === "new" && !selectedTemplate) {
+      console.error('[DEBUG] Resetting form values');
+      setFormValues(undefined);
     }
   };
 
@@ -76,32 +153,23 @@ export function AddItemDialog({
     }
   };
 
-  // Convert Template to form values
-  const formValues = selectedTemplate ? {
-    name: selectedTemplate.name,
-    description: selectedTemplate.description,
-    quantity: 0, // Reset quantity for new item
-    minQuantity: selectedTemplate.minQuantity,
-    unit: selectedTemplate.unit,
-    costPerUnit: selectedTemplate.costPerUnit,
-    category: selectedTemplate.category,
-    location: selectedTemplate.location,
-    supplier: selectedTemplate.supplier,
-    supplierWebsite: selectedTemplate.supplierWebsite,
-    project: selectedTemplate.project,
-    notes: selectedTemplate.notes,
-    orderStatus: selectedTemplate.orderStatus,
-    deliveryPercentage: selectedTemplate.deliveryPercentage
-  } : undefined;
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      setLastAction(`Dialog ${newOpen ? 'opened' : 'closed'}`);
+      if (!selectedTemplate || !newOpen) {
+        onOpenChange(newOpen);
+      }
+    }}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Add New Item</DialogTitle>
         </DialogHeader>
         
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "new" | "template")}>
+        <div className="text-xs text-muted-foreground mb-2">
+          Last Action: {lastAction}
+        </div>
+
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="new">New Item</TabsTrigger>
             <TabsTrigger value="template">From Template</TabsTrigger>
@@ -137,7 +205,11 @@ export function AddItemDialog({
                     <Card
                       key={template.templateName}
                       className="cursor-pointer hover:bg-accent"
-                      onClick={() => handleTemplateSelect(template.templateName)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleTemplateSelect(template.templateName);
+                      }}
                     >
                       <CardContent className="p-4">
                         <div className="font-medium">{template.templateName}</div>

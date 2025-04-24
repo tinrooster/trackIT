@@ -1,21 +1,23 @@
 "use client";
 
-import React, { useState } from "react";
+import * as React from 'react';
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Form, FormItem, FormMessage } from "@/components/ui/form"; // Using custom Form components
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { InventoryItem, OrderStatus } from "@/types/inventory";
+import { InventoryItem, OrderStatus, ItemWithSubcategories } from "@/types/inventory";
 import { toast } from "sonner";
-import { Loader2, Save, ScanLine, Keyboard, Camera } from "lucide-react"; // Added Keyboard and Camera icons
+import { Loader2, Save, ScanLine, Keyboard, Camera } from "lucide-react";
 import { OrderStatusSelector } from "@/components/OrderStatusSelector";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
-import { ManualBarcodeInput } from "@/components/ManualBarcodeInput"; // Import the new component
-import { Label } from "@/components/ui/label"; // Import Label directly
+import { ManualBarcodeInput } from "@/components/ManualBarcodeInput";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Helper function to prepend https:// if needed
 const ensureUrlProtocol = (url: string | undefined): string | undefined => {
@@ -43,7 +45,8 @@ const formSchema = z.object({
   supplierWebsite: z.string().optional(),
   project: z.string().optional(),
   orderStatus: z.enum(['delivered', 'partially_delivered', 'backordered', 'on_order', 'not_ordered']).default('delivered'),
-  deliveryPercentage: z.coerce.number().min(0).max(100).default(100),
+  deliveryPercentage: z.number().min(0).max(100).optional(),
+  expectedDeliveryDate: z.string().optional().transform((val) => val ? new Date(val) : undefined),
 }).refine(data => {
   if (data.supplierWebsite && data.supplierWebsite.trim() !== '') {
     try {
@@ -55,6 +58,17 @@ const formSchema = z.object({
   return true;
 }, { message: "Invalid URL format", path: ["supplierWebsite"] });
 
+interface EditItemFormProps {
+  item: InventoryItem;
+  onSubmit: (values: Omit<InventoryItem, "id" | "lastUpdated">) => void;
+  onCancel: () => void;
+  categories: string[];
+  units: ItemWithSubcategories[];
+  locations: ItemWithSubcategories[];
+  suppliers: string[];
+  projects: string[];
+}
+
 export function EditItemForm({
   item,
   onSubmit,
@@ -64,16 +78,7 @@ export function EditItemForm({
   locations = [],
   suppliers = [],
   projects = []
-}: {
-  item: InventoryItem;
-  onSubmit: (values: Omit<InventoryItem, "id" | "lastUpdated">) => void;
-  onCancel: () => void;
-  categories: string[];
-  units: string[];
-  locations: string[];
-  suppliers: string[];
-  projects: string[];
-}) {
+}: EditItemFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -149,7 +154,7 @@ export function EditItemForm({
   };
 
   return (
-    <>
+    <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid grid-cols-2 mb-4">
@@ -161,122 +166,266 @@ export function EditItemForm({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Column 1 */}
               <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Item Name*</Label>
-                  <Input id="name" placeholder="e.g., BNC Connector" {...form.register("name")} />
-                  {form.formState.errors.name && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.name.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea id="description" placeholder="Brief description" className="resize-none" {...form.register("description")} />
-                </div>
-                <div>
-                  <Label htmlFor="quantity">Quantity*</Label>
-                  <Input id="quantity" type="number" min="0" step="any" {...form.register("quantity")} />
-                  {form.formState.errors.quantity && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.quantity.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="minQuantity">Minimum Quantity</Label>
-                  <Input id="minQuantity" type="number" min="0" step="any" {...form.register("minQuantity")} />
-                </div>
-                <div>
-                  <Label htmlFor="unit">Unit*</Label>
-                  <select id="unit" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("unit")}>
-                    <option value="">Select unit...</option>
-                    {units.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-                    {!units.includes(form.getValues().unit) && form.getValues().unit && <option value={form.getValues().unit}>{form.getValues().unit}</option>}
-                  </select>
-                  {form.formState.errors.unit && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.unit.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="costPerUnit">Cost Per Unit ($)</Label>
-                  <Input id="costPerUnit" type="number" min="0" step="0.01" placeholder="e.g., 1.25" {...form.register("costPerUnit")} />
-                </div>
-                <div>
-                  <Label htmlFor="price">Price ($)</Label>
-                  <Input id="price" type="number" min="0" step="0.01" placeholder="e.g., 1.99" {...form.register("price")} />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name*</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g., BNC Connector" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea {...field} placeholder="Brief description" className="resize-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Quantity*</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" step="any" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="minQuantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Minimum Quantity</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" step="any" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="unit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit*</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {units.map(unit => (
+                              <React.Fragment key={unit.id}>
+                                <SelectItem value={unit.name}>
+                                  {unit.name}
+                                </SelectItem>
+                                {unit.subcategories?.map(subcategory => (
+                                  <SelectItem key={`${unit.name}/${subcategory}`} value={`${unit.name}/${subcategory}`}>
+                                    {unit.name} - {subcategory}
+                                  </SelectItem>
+                                ))}
+                              </React.Fragment>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="costPerUnit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cost Per Unit ($)</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" step="0.01" placeholder="e.g., 1.25" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
+
               {/* Column 2 */}
               <div className="space-y-4">
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <select id="category" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("category")}>
-                    <option value="">Select category...</option>
-                    {categories.map(category => <option key={category} value={category}>{category}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="location">Location</Label>
-                  <select id="location" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("location")}>
-                    <option value="">Select location...</option>
-                    {locations.map(location => <option key={location} value={location}>{location}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="supplier">Supplier</Label>
-                  <select id="supplier" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("supplier")}>
-                    <option value="">Select supplier...</option>
-                    {suppliers.map(supplier => <option key={supplier} value={supplier}>{supplier}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="project">Project</Label>
-                  <select id="project" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("project")}>
-                    <option value="">Select project...</option>
-                    {projects.map(project => <option key={project} value={project}>{project}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="supplierWebsite">Supplier Website</Label>
-                  <Input id="supplierWebsite" type="url" placeholder="e.g., www.supplier.com" {...form.register("supplierWebsite")} />
-                </div>
-                <div>
-                  <Label htmlFor="reorderLevel">Reorder Level</Label>
-                  <Input id="reorderLevel" type="number" min="0" placeholder="Min quantity" {...form.register("reorderLevel")} />
-                </div>
-                <div>
-                  <Label htmlFor="barcode">Barcode</Label>
-                  <div className="flex gap-2">
-                    <Input id="barcode" {...form.register("barcode")} />
-                    <Button type="button" variant="outline" size="icon" onClick={toggleManualScanMode}>
-                      {isManualScanMode ? <Keyboard className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
+                <FormField
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map(category => (
+                              <SelectItem key={category} value={category}>
+                                {category}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select location" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {locations.map(location => (
+                              <React.Fragment key={location.id}>
+                                <SelectItem value={location.name}>
+                                  {location.name}
+                                </SelectItem>
+                                {location.subcategories?.map(subcategory => (
+                                  <SelectItem key={`${location.name}/${subcategory}`} value={`${location.name}/${subcategory}`}>
+                                    {location.name} - {subcategory}
+                                  </SelectItem>
+                                ))}
+                              </React.Fragment>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="supplier"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supplier</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select supplier" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {suppliers.map(supplier => (
+                              <SelectItem key={supplier} value={supplier}>
+                                {supplier}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="project"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select project" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {projects.map(project => (
+                              <SelectItem key={project} value={project}>
+                                {project}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-            </div>
-            <div>
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" placeholder="Additional notes..." className="resize-none" {...form.register("notes")} />
             </div>
           </TabsContent>
 
           <TabsContent value="order" className="space-y-4">
-            <div className="space-y-4">
-              <div>
-                <Label>Order Status</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  {...form.register("orderStatus")}
-                >
-                  <option value="delivered">Delivered</option>
-                  <option value="partially_delivered">Partially Delivered</option>
-                  <option value="backordered">Backordered</option>
-                  <option value="on_order">On Order</option>
-                  <option value="not_ordered">Not Ordered</option>
-                </select>
-              </div>
-              <div>
-                <Label>Delivery Percentage</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  {...form.register("deliveryPercentage")}
-                />
-              </div>
-            </div>
+            <FormField
+              control={form.control}
+              name="orderStatus"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Order Status</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="partially_delivered">Partially Delivered</SelectItem>
+                        <SelectItem value="backordered">Backordered</SelectItem>
+                        <SelectItem value="on_order">On Order</SelectItem>
+                        <SelectItem value="not_ordered">Not Ordered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="deliveryPercentage"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Delivery Percentage</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      {...field}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </TabsContent>
         </Tabs>
 
@@ -305,6 +454,6 @@ export function EditItemForm({
         onOpenChange={setIsScannerOpen}
         onScan={handleScanResult}
       />
-    </>
+    </Form>
   );
 }

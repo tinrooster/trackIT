@@ -1,14 +1,15 @@
 "use client";
 
+import * as React from 'react';
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { InventoryItem, OrderStatus } from "@/types/inventory";
+import { InventoryItem, OrderStatus, CategoryNode, ItemWithSubcategories } from "@/types/inventory";
 import { ItemTemplate } from "@/types/templates";
 import { toast } from "sonner";
 import { Loader2, Save, ScanLine, Keyboard, Camera } from "lucide-react";
@@ -24,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { saveTemplates } from "@/lib/storageService";
+import { Switch } from "@/components/ui/switch";
 
 // Add URL validation helper
 const ensureUrlProtocol = (url: string) => {
@@ -52,21 +55,37 @@ const formSchema = z.object({
   project: z.string().optional(),
   minQuantity: z.number().min(0, "Minimum quantity must be 0 or greater").optional(),
   notes: z.string().optional(),
-  orderStatus: z.enum(['delivered', 'partially_delivered', 'backordered', 'on_order', 'not_ordered'] as const).default('not_ordered'),
-  deliveryPercentage: z.number().min(0).max(100).default(0)
+  orderStatus: z.enum(['delivered', 'partially_delivered', 'backordered', 'on_order', 'not_ordered'] as const).default('delivered'),
+  deliveryPercentage: z.number().min(0).max(100).default(100)
 });
 
 interface AddItemFormProps {
   onSubmit: (values: Omit<InventoryItem, "id" | "lastUpdated">) => void;
   onCancel: () => void;
-  categories: string[];
-  units: string[];
-  locations: string[];
+  categories: CategoryNode[];
+  units: ItemWithSubcategories[];
+  locations: ItemWithSubcategories[];
   suppliers: string[];
   projects: string[];
   isSubmitting: boolean;
   initialValues?: Partial<Omit<InventoryItem, "id" | "lastUpdated">>;
   selectedTemplate?: ItemTemplate;
+}
+
+function flattenCategories(categories: CategoryNode[]): string[] {
+  const flattened: string[] = [];
+
+  function traverse(node: CategoryNode, currentPath: string = '') {
+    const path = currentPath ? `${currentPath}/${node.name}` : node.name;
+    flattened.push(path);
+
+    if (node.children) {
+      node.children.forEach(child => traverse(child, path));
+    }
+  }
+
+  categories.forEach(category => traverse(category));
+  return flattened.sort();
 }
 
 export function AddItemForm({
@@ -87,43 +106,29 @@ export function AddItemForm({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: selectedTemplate?.name || "",
-      description: selectedTemplate?.description || "",
-      category: selectedTemplate?.category || "",
-      quantity: 0,
-      minQuantity: selectedTemplate?.minQuantity || 0,
-      costPerUnit: selectedTemplate?.costPerUnit || 0,
-      unit: selectedTemplate?.unit || "",
-      location: selectedTemplate?.location || "",
-      supplier: selectedTemplate?.supplier || "",
-      supplierWebsite: selectedTemplate?.supplierWebsite || "",
-      project: selectedTemplate?.project || "",
-      notes: selectedTemplate?.notes || "",
-      orderStatus: selectedTemplate?.orderStatus || "not_ordered",
-      deliveryPercentage: selectedTemplate?.deliveryPercentage || 0
-    },
+      name: initialValues?.name || "",
+      description: initialValues?.description || "",
+      category: initialValues?.category || "",
+      quantity: initialValues?.quantity || 0,
+      minQuantity: initialValues?.minQuantity || 0,
+      costPerUnit: initialValues?.costPerUnit || 0,
+      unit: initialValues?.unit || "",
+      location: initialValues?.location || "",
+      supplier: initialValues?.supplier || "",
+      supplierWebsite: initialValues?.supplierWebsite || "",
+      project: initialValues?.project || "",
+      notes: initialValues?.notes || "",
+      orderStatus: initialValues?.orderStatus || 'delivered',
+      deliveryPercentage: initialValues?.deliveryPercentage || 100
+    }
   });
 
+  // Reset form when initialValues change
   useEffect(() => {
-    if (selectedTemplate) {
-      form.reset({
-        name: selectedTemplate.name,
-        description: selectedTemplate.description,
-        category: selectedTemplate.category,
-        quantity: 0,
-        minQuantity: selectedTemplate.minQuantity,
-        costPerUnit: selectedTemplate.costPerUnit,
-        unit: selectedTemplate.unit,
-        location: selectedTemplate.location,
-        supplier: selectedTemplate.supplier,
-        supplierWebsite: selectedTemplate.supplierWebsite,
-        project: selectedTemplate.project,
-        notes: selectedTemplate.notes,
-        orderStatus: selectedTemplate.orderStatus,
-        deliveryPercentage: selectedTemplate.deliveryPercentage
-      });
+    if (initialValues) {
+      form.reset(initialValues);
     }
-  }, [selectedTemplate, form]);
+  }, [initialValues, form]);
 
   const handleFormSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
@@ -149,18 +154,77 @@ export function AddItemForm({
     }
   };
 
+  const handleSaveTemplate = (data: z.infer<typeof formSchema>) => {
+    const template: ItemTemplate = {
+      templateId: crypto.randomUUID(),
+      templateName: `${data.name} Template`,
+      name: data.name,
+      description: data.description ?? "",
+      category: data.category ?? "",
+      unit: data.unit ?? "",
+      location: data.location ?? "",
+      project: data.project ?? "",
+      supplier: data.supplier ?? "",
+      minQuantity: Number(data.minQuantity) || 0,
+      quantity: Number(data.quantity) || 0,
+      orderStatus: "not_ordered",
+      deliveryPercentage: 0
+    };
+    saveTemplates([template]);
+    toast.success("Template saved successfully");
+  };
+
   return (
-    <>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="Item name" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Description</FormLabel>
+              <FormControl>
+                <Textarea {...field} placeholder="Item description" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="name"
+            name="category"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Name</FormLabel>
+                <FormLabel>Category</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="Item name" />
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {flattenCategories(categories).map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -169,118 +233,40 @@ export function AddItemForm({
 
           <FormField
             control={form.control}
-            name="description"
+            name="unit"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Description</FormLabel>
+                <FormLabel>Unit</FormLabel>
                 <FormControl>
-                  <Textarea {...field} placeholder="Item description" />
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {units.map(unit => (
+                        <SelectItem key={unit.id} value={unit.name}>
+                          {unit.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+        </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category</FormLabel>
-                  <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="unit"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Unit</FormLabel>
-                  <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select unit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {units.map((unit) => (
-                          <SelectItem key={unit} value={unit}>
-                            {unit}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Quantity</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="minQuantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Minimum Quantity</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
+        <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="costPerUnit"
+            name="quantity"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Cost Per Unit</FormLabel>
+                <FormLabel>Quantity</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    step="0.01"
                     {...field}
                     onChange={(e) => field.onChange(Number(e.target.value))}
                   />
@@ -290,146 +276,177 @@ export function AddItemForm({
             )}
           />
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Location</FormLabel>
-                  <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select location" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {locations.map((location) => (
-                          <SelectItem key={location} value={location}>
-                            {location}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="project"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Project</FormLabel>
-                  <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select project" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projects.map((project) => (
-                          <SelectItem key={project} value={project}>
-                            {project}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="supplier"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Supplier</FormLabel>
-                  <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select supplier" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {suppliers.map((supplier) => (
-                          <SelectItem key={supplier} value={supplier}>
-                            {supplier}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="supplierWebsite"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Supplier Website</FormLabel>
-                  <FormControl>
-                    <Input 
-                      {...field} 
-                      placeholder="www.example.com"
-                      type="text"
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Enter website without http:// - it will be added automatically
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
           <FormField
             control={form.control}
-            name="notes"
+            name="minQuantity"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Notes</FormLabel>
+                <FormLabel>Minimum Quantity</FormLabel>
                 <FormControl>
-                  <Textarea {...field} placeholder="Additional notes" />
+                  <Input
+                    type="number"
+                    {...field}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="costPerUnit"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Cost Per Unit</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.01"
+                  {...field}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="location"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Location</FormLabel>
+                <FormControl>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map(location => (
+                        <SelectItem key={location.id} value={location.name}>
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Item
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
-      </Form>
+          <FormField
+            control={form.control}
+            name="project"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Project</FormLabel>
+                <FormControl>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map(project => (
+                        <SelectItem key={project} value={project}>
+                          {project}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
-      <BarcodeScannerDialog
-        open={isScannerOpen}
-        onOpenChange={setIsScannerOpen}
-        onScan={handleScanResult}
-      />
-    </>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="supplier"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Supplier</FormLabel>
+                <FormControl>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select supplier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map(supplier => (
+                        <SelectItem key={supplier} value={supplier}>
+                          {supplier}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="supplierWebsite"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Supplier Website</FormLabel>
+                <FormControl>
+                  <Input 
+                    {...field} 
+                    placeholder="www.example.com"
+                    type="text"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Enter website without http:// - it will be added automatically
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notes</FormLabel>
+              <FormControl>
+                <Textarea {...field} placeholder="Additional notes" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Save Item
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }

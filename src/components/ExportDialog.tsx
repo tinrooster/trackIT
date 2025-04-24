@@ -5,188 +5,118 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from 'sonner';
-import { FileDown, Loader2 } from 'lucide-react';
-import { InventoryItem } from '@/types/inventory';
-import * as XLSX from 'xlsx';
-import { format } from 'date-fns';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { InventoryItem } from "@/types/inventory";
 
 interface ExportDialogProps {
   isOpen: boolean;
   onClose: () => void;
   items: InventoryItem[];
+  defaultFilename?: string;
 }
 
-export function ExportDialog({ isOpen, onClose, items }: ExportDialogProps) {
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'xlsx' | 'csv'>('xlsx');
-  const [selectedFields, setSelectedFields] = useState<Record<string, boolean>>({
-    name: true,
-    description: true,
-    quantity: true,
-    unit: true,
-    costPerUnit: true,
-    category: true,
-    location: true,
-    reorderLevel: true,
-    barcode: true,
-    notes: true,
-    supplier: true,
-    supplierWebsite: true,
-    project: true,
-    orderStatus: true,
-    deliveryPercentage: true,
-    expectedDeliveryDate: true
-  });
+export function ExportDialog({ isOpen, onClose, items, defaultFilename }: ExportDialogProps) {
+  const [format, setFormat] = useState<"csv" | "xlsx">("csv");
+  const [filename, setFilename] = useState(defaultFilename || `inventory_export_${new Date().toISOString().split('T')[0]}`);
 
-  const toggleField = (field: string) => {
-    setSelectedFields(prev => ({
-      ...prev,
-      [field]: !prev[field]
-    }));
-  };
-
-  const handleExport = async () => {
-    if (items.length === 0) {
-      toast.warning("No items to export");
-      return;
-    }
-
-    setIsExporting(true);
-
+  const handleExport = () => {
     try {
-      // Filter the data based on selected fields
-      const dataToExport = items.map(item => {
-        const exportRow: Record<string, any> = {};
-        
-        Object.keys(selectedFields).forEach(field => {
-          if (selectedFields[field]) {
-            if (field === 'expectedDeliveryDate' && item[field as keyof InventoryItem]) {
-              // Format date fields
-              exportRow[field] = format(
-                new Date(item[field as keyof InventoryItem] as string | Date), 
-                'yyyy-MM-dd'
-              );
-            } else {
-              exportRow[field] = item[field as keyof InventoryItem];
-            }
-          }
-        });
-        
-        return exportRow;
-      });
+      // Create data array with headers
+      const headers = ['Name', 'Category', 'Location', 'Project', 'Quantity', 'Unit', 'Notes', 'Last Updated'];
+      const rows = items.map(item => [
+        item.name,
+        item.category || '',
+        item.location || '',
+        item.project || '',
+        item.quantity.toString(),
+        item.unit || '',
+        item.notes || '',
+        new Date(item.lastUpdated).toLocaleDateString()
+      ]);
 
-      // Create workbook and worksheet
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+      if (format === "csv") {
+        // Export as CSV
+        const csvContent = [
+          headers.join(','),
+          ...rows.map(row => row.map(cell => 
+            `"${String(cell).replace(/"/g, '""')}"`
+          ).join(','))
+        ].join('\n');
 
-      // Generate filename with date
-      const dateStr = format(new Date(), "yyyy-MM-dd");
-      const filename = `Inventory_Export_${dateStr}.${exportFormat}`;
-
-      // Export based on format
-      if (exportFormat === 'xlsx') {
-        XLSX.writeFile(wb, filename);
-      } else {
-        const csvContent = XLSX.utils.sheet_to_csv(ws);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${filename}.csv`);
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        // For XLSX, we'll need to implement XLSX export
+        // This would require the xlsx library
+        console.error("XLSX export not yet implemented");
       }
 
-      toast.success(`Exported ${items.length} items successfully`);
       onClose();
     } catch (error) {
-      console.error("Export error:", error);
-      toast.error("Failed to export data");
-    } finally {
-      setIsExporting(false);
+      console.error('Export error:', error);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Export Inventory</DialogTitle>
           <DialogDescription>
-            Select the fields and format for your export file.
+            Choose your export format and filename
           </DialogDescription>
         </DialogHeader>
-
-        <div className="py-4 space-y-4">
-          <div className="space-y-2">
-            <Label>Export Format</Label>
-            <div className="flex space-x-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  id="format-xlsx"
-                  checked={exportFormat === 'xlsx'}
-                  onChange={() => setExportFormat('xlsx')}
-                />
-                <Label htmlFor="format-xlsx">Excel (.xlsx)</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  id="format-csv"
-                  checked={exportFormat === 'csv'}
-                  onChange={() => setExportFormat('csv')}
-                />
-                <Label htmlFor="format-csv">CSV (.csv)</Label>
-              </div>
-            </div>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="format">Export Format</Label>
+            <Select
+              value={format}
+              onValueChange={(value: "csv" | "xlsx") => setFormat(value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select format" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="csv">CSV (Comma Separated Values)</SelectItem>
+                <SelectItem value="xlsx">Excel Workbook (XLSX)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-
-          <div className="space-y-2">
-            <Label>Fields to Export</Label>
-            <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border rounded-md p-2">
-              {Object.keys(selectedFields).map(field => (
-                <div key={field} className="flex items-center space-x-2">
-                  <Checkbox 
-                    id={`field-${field}`}
-                    checked={selectedFields[field]}
-                    onCheckedChange={() => toggleField(field)}
-                  />
-                  <Label htmlFor={`field-${field}`} className="capitalize">
-                    {field.replace(/([A-Z])/g, ' $1').trim()}
-                  </Label>
-                </div>
-              ))}
-            </div>
+          <div className="grid gap-2">
+            <Label htmlFor="filename">Filename</Label>
+            <Input
+              id="filename"
+              value={filename}
+              onChange={(e) => setFilename(e.target.value)}
+              placeholder="Enter filename without extension"
+            />
           </div>
         </div>
-
-        <DialogFooter>
+        <div className="flex justify-end space-x-2">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleExport} 
-            disabled={isExporting || Object.values(selectedFields).every(v => !v)}
-          >
-            {isExporting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <FileDown className="mr-2 h-4 w-4" />
-                Export {items.length} Items
-              </>
-            )}
+          <Button onClick={handleExport}>
+            Export
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

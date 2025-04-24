@@ -4,10 +4,11 @@ This guide provides detailed instructions on how to use the Inventory Tracking S
 
 ## Navigation
 
-The application has four main sections accessible from the navigation bar:
+The application has five main sections accessible from the navigation bar:
 
 - **Dashboard**: Overview of inventory status and low stock alerts
 - **Inventory**: Complete list of inventory items with search and filter capabilities
+- **Templates**: Manage item templates for quick creation
 - **Reports**: Generate and export various inventory reports
 - **Settings**: Configure categories, units, locations, suppliers, and projects
 
@@ -36,13 +37,23 @@ The Inventory page displays all items in a sortable, filterable table:
 - Click column headers to sort by that column
 - Use the search box to filter items (e.g., "category:cables" or just "cable")
 - Click the "Export Current View" button to export the filtered list to Excel
+- Use the "Batch Operations" button to perform actions on multiple items
 
 ### Adding Items
 To add a new inventory item:
 1. Click the "Add Item" button
-2. Fill in the required fields (Name, Quantity, Unit)
-3. Add optional details (Description, Category, Location, etc.)
-4. Click "Add Item" to save
+2. Choose between creating from scratch or using a template
+3. Fill in the required fields (Name, Quantity, Unit)
+4. Add optional details (Description, Category, Location, etc.)
+5. Click "Add Item" to save
+
+### Using Templates
+To create items from templates:
+1. Click the "Add Item" button
+2. Select "Use Template" from the dropdown
+3. Choose a template from the list
+4. Modify any fields as needed
+5. Click "Add Item" to save
 
 ### Viewing Item Details
 Click the edit icon (pencil) on any inventory item to view its details page, which includes:
@@ -68,6 +79,41 @@ From the item details page:
 3. Enter the quantity to adjust
 4. Provide a reason for the adjustment
 5. Click the adjustment button to save
+
+### Batch Operations
+To perform actions on multiple items:
+1. Click the "Batch Operations" button in the inventory view
+2. Select the items you want to modify
+3. Choose the operation (e.g., adjust quantity, change category)
+4. Enter the required information
+5. Click "Apply" to execute the operation on all selected items
+
+## Template Management
+
+The Templates page allows you to create and manage item templates:
+
+### Creating Templates
+1. Click the "New Template" button
+2. Fill in the template details:
+   - Name and description
+   - Default category, unit, and location
+   - Default reorder level
+   - Default supplier and project
+   - Any other default values
+3. Click "Save Template"
+
+### Using Templates
+1. When adding a new item, select "Use Template"
+2. Choose a template from the list
+3. The form will be pre-filled with the template's default values
+4. Modify any values as needed
+5. Click "Add Item" to create the new item
+
+### Managing Templates
+- Edit templates by clicking the edit icon
+- Delete templates by clicking the delete icon
+- View template details by clicking on a template name
+- Export templates to share with other users
 
 ## Reports
 
@@ -125,3 +171,5 @@ The application supports barcode scanning using your device's camera:
 - **Set Reorder Levels**: Define appropriate reorder levels for critical items to receive low stock alerts
 - **Document Adjustments**: Always provide clear reasons when adjusting inventory quantities
 - **Project Tracking**: Assign items to specific projects to track usage by project
+- **Template Usage**: Create templates for frequently added items to save time
+- **Batch Operations**: Use batch operations for efficient management of multiple items

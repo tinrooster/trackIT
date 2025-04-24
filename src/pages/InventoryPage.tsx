@@ -1,8 +1,18 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// Test comment to verify file writing
+import { useState, useEffect, useMemo } from 'react';
+import type { FC } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { InventoryTable } from '@/components/InventoryTable';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useAuth } from '@/contexts/AuthContext';
+import { InventoryItem, CategoryNode, ItemWithSubcategories } from '@/types/inventory';
+import { BatchOperations } from '@/components/BatchOperations';
+import { v4 as uuidv4 } from 'uuid';
+import { toast } from 'sonner';
+import { getSettings } from '@/lib/storageService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { 
   Plus, 
   Search, 
@@ -13,19 +23,15 @@ import {
   Pencil,
   Trash,
   ArrowUpDown,
-  FileText
+  FileText,
+  LayoutList,
+  LayoutGrid
 } from 'lucide-react';
 import { AddItemDialog } from '@/components/AddItemDialog';
 import { EditItemDialog } from '@/components/EditItemDialog';
-import { InventoryItem } from '@/types/inventory';
-import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { DuplicateItemDialog } from '@/components/DuplicateItemDialog';
-import { useAuth } from '@/contexts/AuthContext';
+import { ExportDialog } from '@/components/ExportDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BatchOperations } from '@/components/BatchOperations';
-import { getSettings } from '@/lib/storageService';
 import { ItemTemplate } from '@/types/templates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -37,6 +43,31 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { format } from 'date-fns';
+import { formatCurrency, cn } from '@/lib/utils';
+import { FormatCellValue } from '@/components/formatting/CellValue';
+import * as React from 'react';
+
+// Helper function to flatten categories
+function flattenCategories(categories: CategoryNode[]): string[] {
+  if (!categories || !Array.isArray(categories)) {
+    return [];
+  }
+  
+  const flattened: string[] = [];
+  
+  const traverse = (node: CategoryNode, parentPath: string = '') => {
+    const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+    flattened.push(currentPath);
+    
+    if (node.children) {
+      node.children.forEach(child => traverse(child, currentPath));
+    }
+  };
+
+  categories.forEach(category => traverse(category));
+  return flattened.sort();
+}
 
 // Helper to get unique values from an array of items for a specific field
 const getUniqueValues = (items: InventoryItem[], field: keyof InventoryItem): string[] => {
@@ -44,6 +75,19 @@ const getUniqueValues = (items: InventoryItem[], field: keyof InventoryItem): st
     .map(item => item[field])
     .filter((value): value is string => !!value); // Filter out undefined/null values
   return [...new Set(values)].sort();
+};
+
+// Helper function to convert ItemWithSubcategories to CategoryNode
+const convertToCategories = (items: ItemWithSubcategories[]): CategoryNode[] => {
+  return items.map(item => ({
+    id: item.id,
+    name: item.name,
+    children: item.subcategories ? item.subcategories.map((sub: string) => ({
+      id: crypto.randomUUID(),
+      name: sub,
+      parentId: item.id
+    })) : undefined
+  }));
 };
 
 export default function InventoryPage() {
@@ -65,6 +109,7 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(categoryFilter);
   const [selectedLocation, setSelectedLocation] = useState(locationFilter);
+  const [selectedSupplier, setSelectedSupplier] = useState(supplierFilter);
   const [selectedProject, setSelectedProject] = useState(projectFilter);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isAllSelected, setIsAllSelected] = useState(false);
@@ -77,20 +122,28 @@ export default function InventoryPage() {
   const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   
-  // Get predefined values from settings
-  const predefinedCategories = getSettings('CATEGORIES');
-  const predefinedUnits = getSettings('UNITS');
-  const predefinedLocations = getSettings('LOCATIONS');
-  const predefinedSuppliers = getSettings('SUPPLIERS');
-  const predefinedProjects = getSettings('PROJECTS');
-  
-  // Compute unique values for dropdowns, combining predefined values with existing ones
-  const categories = useMemo(() => [...new Set([...predefinedCategories, ...getUniqueValues(items, 'category')])].sort(), [items, predefinedCategories]);
-  const locations = useMemo(() => [...new Set([...predefinedLocations, ...getUniqueValues(items, 'location')])].sort(), [items, predefinedLocations]);
-  const suppliers = useMemo(() => [...new Set([...predefinedSuppliers, ...getUniqueValues(items, 'supplier')])].sort(), [items, predefinedSuppliers]);
-  const projects = useMemo(() => [...new Set([...predefinedProjects, ...getUniqueValues(items, 'project')])].sort(), [items, predefinedProjects]);
-  const units = useMemo(() => [...new Set([...predefinedUnits, ...getUniqueValues(items, 'unit')])].sort(), [items, predefinedUnits]);
+  // Load settings
+  const [categories, setCategories] = useState<CategoryNode[]>([]);
+  const [units, setUnits] = useState<ItemWithSubcategories[]>([]);
+  const [locations, setLocations] = useState<ItemWithSubcategories[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [projects, setProjects] = useState<string[]>([]);
+
+  // Load settings from localStorage
+  useEffect(() => {
+    const loadSettings = () => {
+      const settings = getSettings();
+      // Transform settings into appropriate formats
+      setCategories(convertToCategories(settings.categories));
+      setUnits(settings.units);
+      setLocations(settings.locations);
+      setSuppliers(settings.suppliers.map(sup => sup.name));
+      setProjects(settings.projects.map(proj => proj.name));
+    };
+    loadSettings();
+  }, []);
 
   // Get template from navigation state if available
   const template = location.state?.template as ItemTemplate | undefined;
@@ -134,6 +187,9 @@ export default function InventoryPage() {
     });
   }, [items, searchQuery, selectedCategory, selectedLocation, selectedProject, sortField, sortDirection]);
 
+  // Get flattened categories for filtering
+  const flattenedCategories = useMemo(() => flattenCategories(categories), [categories]);
+
   // Handle column sort
   const handleSort = (field: keyof InventoryItem) => {
     if (sortField === field) {
@@ -169,23 +225,7 @@ export default function InventoryPage() {
     setIsAllSelected(false);
   };
 
-  // Batch operations
-  const handleBatchEdit = () => {
-    // Implement batch edit functionality
-    toast.info("Batch edit functionality coming soon");
-  };
-
-  const handleDeleteSelected = () => {
-    // Implement delete selected functionality
-    toast.info("Delete selected functionality coming soon");
-  };
-
   // Single item operations
-  const handleEdit = (item: InventoryItem) => {
-    setSelectedItem(item);
-    setIsEditDialogOpen(true);
-  };
-
   const handleDelete = (item: InventoryItem) => {
     setItemToDelete(item);
     setIsDeleteDialogOpen(true);
@@ -199,11 +239,6 @@ export default function InventoryPage() {
       setIsDeleteDialogOpen(false);
       setItemToDelete(null);
     }
-  };
-
-  const handleExport = () => {
-    // Implement export functionality
-    toast.info("Export functionality coming soon");
   };
 
   // Update URL when filters change
@@ -254,19 +289,25 @@ export default function InventoryPage() {
   };
 
   // Handle editing an item
-  const handleEditItem = (updatedItem: InventoryItem) => {
-    const updatedItems = items.map(item => 
-      item.id === updatedItem.id 
-        ? { 
-            ...updatedItem, 
-            lastUpdated: new Date(), 
-            lastModifiedBy: user?.displayName || user?.username || 'Unknown'
-          } 
-        : item
-    );
-    setItems(updatedItems);
-    setIsEditDialogOpen(false);
-    toast.success(`Updated "${updatedItem.name}"`);
+  const handleEditItem = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async (updatedItem: InventoryItem) => {
+    try {
+      const updatedItems = items.map(item => 
+        item.id === updatedItem.id ? { ...updatedItem, lastUpdated: new Date() } : item
+      );
+      setItems(updatedItems);
+      toast.success(`Updated "${updatedItem.name}"`);
+      setIsEditDialogOpen(false);
+      setSelectedItem(null);
+      setHighlightedItemId(updatedItem.id);
+    } catch (error) {
+      console.error('Error updating item:', error);
+      toast.error('Failed to update item');
+    }
   };
 
   // Handle duplicating an item
@@ -289,16 +330,33 @@ export default function InventoryPage() {
   const handleFilterChange = (field: string, value: string) => {
     switch (field) {
       case 'category':
-        setSelectedCategory(value);
+        setSelectedCategory(value === 'all' ? '' : value);
         break;
       case 'location':
-        setSelectedLocation(value);
+        setSelectedLocation(value === 'all' ? '' : value);
         break;
       case 'project':
-        setSelectedProject(value);
+        setSelectedProject(value === 'all' ? '' : value);
         break;
     }
   };
+
+  // Get unique values for filters
+  const uniqueLocations = useMemo(() => {
+    const allLocations = locations.flatMap(loc => [
+      loc.name,
+      ...(loc.subcategories?.map(sub => `${loc.name}/${sub}`) || [])
+    ]);
+    return [...new Set(allLocations)];
+  }, [locations]);
+
+  const uniqueUnits = useMemo(() => {
+    const allUnits = units.flatMap(unit => [
+      unit.name,
+      ...(unit.subcategories?.map(sub => `${unit.name}/${sub}`) || [])
+    ]);
+    return [...new Set(allUnits)];
+  }, [units]);
 
   useEffect(() => {
     // If we have a template from navigation, open the add dialog
@@ -309,324 +367,256 @@ export default function InventoryPage() {
     }
   }, [template, navigate, location.pathname]);
 
+  const [isDetailedView, setIsDetailedView] = useState(false);
+
+  // Define column sets for different views
+  const SIMPLE_COLUMNS = ['name', 'category', 'location', 'project', 'quantity'];
+  const DETAILED_COLUMNS = ['name', 'category', 'quantity', 'unit', 'costPerUnit', 'totalValue', 'location', 'project', 'lastUpdated'];
+
+  const activeColumns = isDetailedView ? DETAILED_COLUMNS : SIMPLE_COLUMNS;
+
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6 min-h-screen">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold">Inventory</h1>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <Button variant="outline" onClick={() => handleExport()} className="w-full sm:w-auto">
-            <Download className="mr-2 h-4 w-4" />
-            Export Current View
-          </Button>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="w-full sm:w-auto">
+    <div className="container mx-auto px-4 py-6 space-y-4 min-h-screen">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-2xl font-bold">Inventory</h1>
+          <div className="flex items-center space-x-2">
+            <Input
+              type="text"
+              placeholder="Search inventory..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="min-w-[240px]"
+            />
+            <div className="flex items-center space-x-2">
+              <Select value={selectedCategory || 'all'} onValueChange={(value) => handleFilterChange('category', value)}>
+                <SelectTrigger className="min-w-[200px]">
+                  <SelectValue placeholder="Filter by category" />
+                </SelectTrigger>
+                <SelectContent className="min-w-[200px]">
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {flattenedCategories.map(category => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedLocation || "all"} onValueChange={(value) => handleFilterChange('location', value === "all" ? "" : value)}>
+                <SelectTrigger className="min-w-[200px]">
+                  <SelectValue placeholder="All Locations" />
+                </SelectTrigger>
+                <SelectContent className="min-w-[200px]">
+                  <SelectItem value="all">All Locations</SelectItem>
+                  {locations.map(location => (
+                    <React.Fragment key={location.id}>
+                      <SelectItem value={location.name}>
+                        {location.name}
+                      </SelectItem>
+                      {location.subcategories?.map(subcategory => (
+                        <SelectItem key={`${location.name}/${subcategory}`} value={`${location.name}/${subcategory}`}>
+                          {location.name} - {subcategory}
+                        </SelectItem>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedProject || "all"} onValueChange={(value) => handleFilterChange('project', value === "all" ? "" : value)}>
+                <SelectTrigger className="min-w-[200px]">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent className="min-w-[200px]">
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects.map(project => (
+                    <SelectItem key={project} value={project}>{project}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        handleFilterChange('category', 'all');
+                        handleFilterChange('location', 'all');
+                        handleFilterChange('project', 'all');
+                      }}
+                      className="ml-1"
+                      disabled={!selectedCategory && !selectedLocation && !selectedProject}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {selectedCategory || selectedLocation || selectedProject 
+                      ? "Clear all filters" 
+                      : "No active filters"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 mr-4">
+            <Switch
+              id="view-mode"
+              checked={isDetailedView}
+              onCheckedChange={setIsDetailedView}
+            />
+            <Label htmlFor="view-mode" className="text-sm">
+              {isDetailedView ? 'Detailed View' : 'Simple View'}
+            </Label>
+          </div>
+          <Button onClick={() => setIsAddDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Add Item
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col lg:flex-row gap-2">
-          <div className="flex-1">
-            <Input
-              type="text"
-              placeholder="Search inventory..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
-            <Select value={selectedCategory || "all"} onValueChange={(value) => setSelectedCategory(value === "all" ? "" : value)}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedLocation || "all"} onValueChange={(value) => setSelectedLocation(value === "all" ? "" : value)}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="All Locations" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Locations</SelectItem>
-                {locations.map((location) => (
-                  <SelectItem key={location} value={location}>
-                    {location}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedProject || "all"} onValueChange={(value) => setSelectedProject(value === "all" ? "" : value)}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="All Projects" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Projects</SelectItem>
-                {projects.map((project) => (
-                  <SelectItem key={project} value={project}>
-                    {project}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {(selectedCategory || selectedLocation || selectedProject || searchQuery) && (
-            <Button variant="ghost" onClick={() => {
-              setSelectedCategory('');
-              setSelectedLocation('');
-              setSelectedProject('');
-              setSearchQuery('');
-            }} className="w-full sm:w-auto">
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+      <div className="flex justify-between items-center mb-4">
+        <div className="text-sm text-muted-foreground">
+          {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} found
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={clearSelection}
-          disabled={selectedItems.length === 0}
-        >
-          Clear Selection
+        <Button variant="outline" onClick={() => setIsExportDialogOpen(true)}>
+          <Download className="mr-2 h-4 w-4" />
+          Export Current View
         </Button>
-        {selectedItems.length > 0 && (
-          <>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => handleDeleteSelected()}
-            >
-              Delete Selected ({selectedItems.length})
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleBatchEdit()}
-            >
-              Batch Edit ({selectedItems.length})
-            </Button>
-          </>
-        )}
       </div>
 
-      <div className="rounded-md border">
-        <div className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <div className="max-h-[calc(100vh-24rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
-              <table className="w-full border-collapse min-w-[1000px]">
-                <thead className="sticky top-0 bg-gray-100 shadow-sm z-10">
-                  <tr>
-                    <th className="w-[30px] p-4 text-left font-bold border-b">
-                      <Checkbox
-                        checked={isAllSelected}
-                        onCheckedChange={toggleSelectAll}
-                      />
-                    </th>
-                    <th 
-                      className="p-4 text-left font-bold border-b cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleSort('name')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Name
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="p-4 text-left font-bold border-b cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleSort('category')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Category
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="p-4 text-left font-bold border-b cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleSort('quantity')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Quantity
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="p-4 text-left font-bold border-b cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleSort('unit')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Unit
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="p-4 text-left font-bold border-b cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleSort('costPerUnit')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Cost Per Unit
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th className="p-4 text-left font-bold border-b">Total Value</th>
-                    <th 
-                      className="p-4 text-left font-bold border-b cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleSort('location')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Location
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="p-4 text-left font-bold border-b cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleSort('project')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Project
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="p-4 text-left font-bold border-b cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleSort('lastUpdated')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Last Updated
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th className="w-[100px] p-4 text-left font-bold border-b">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item) => (
-                    <tr key={item.id} className="border-b hover:bg-muted/50">
-                      <td className="p-4">
-                        <Checkbox
-                          checked={selectedItems.includes(item.id)}
-                          onCheckedChange={() => toggleItemSelection(item.id)}
-                        />
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          {item.name}
-                          {item.notes && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <FileText className="h-4 w-4 text-blue-500" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>{item.notes}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-4">{item.category}</td>
-                      <td className="p-4">{item.quantity}</td>
-                      <td className="p-4">{item.unit}</td>
-                      <td className="p-4">${item.costPerUnit?.toFixed(2)}</td>
-                      <td className="p-4">${(item.quantity * (item.costPerUnit || 0)).toFixed(2)}</td>
-                      <td className="p-4">{item.location}</td>
-                      <td className="p-4">{item.project}</td>
-                      <td className="p-4">
-                        <div className="flex flex-col">
-                          <span>{new Date(item.lastUpdated).toLocaleString()}</span>
-                          <span className="text-xs text-muted-foreground">by {item.lastModifiedBy}</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(item)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(item)}
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="text-sm text-muted-foreground">
-        {filteredItems.length} items found
-      </div>
-
-      {/* Add Item Dialog */}
-      {isAddDialogOpen && (
-        <AddItemDialog
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          onSubmit={handleAddItem}
-          categories={categories}
-          units={units}
-          locations={locations}
-          suppliers={suppliers}
-          projects={projects}
-        />
-      )}
-
-      {/* Edit Item Dialog */}
-      {isEditDialogOpen && selectedItem && (
-        <EditItemDialog
-          isOpen={isEditDialogOpen}
-          onClose={() => {
-            setIsEditDialogOpen(false);
-            setSelectedItem(null);
+      {selectedItems.length > 0 && (
+        <BatchOperations
+          selectedItems={selectedItems}
+          onClearSelection={clearSelection}
+          onItemsUpdated={() => {
+            // Refresh the items list if needed
+            const updatedItems = [...items];
+            setItems(updatedItems);
           }}
-          onSave={handleEditItem}
-          item={selectedItem}
-          categories={categories}
-          units={units}
-          locations={locations}
-          suppliers={suppliers}
-          projects={projects}
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
-      {isDeleteDialogOpen && itemToDelete && (
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete "{itemToDelete.name}" from your inventory.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+      <div className="bg-white rounded-lg shadow">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[30px]">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </TableHead>
+              {activeColumns.map((column) => (
+                <TableHead key={column}>
+                  <div className="flex items-center space-x-1 cursor-pointer" onClick={() => handleSort(column as keyof InventoryItem)}>
+                    <span>{column.charAt(0).toUpperCase() + column.slice(1).replace(/([A-Z])/g, ' $1')}</span>
+                    <ArrowUpDown className="h-4 w-4" />
+                  </div>
+                </TableHead>
+              ))}
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredItems.map((item) => (
+              <TableRow key={item.id} className={highlightedItemId === item.id ? 'bg-blue-50' : ''}>
+                <TableCell>
+                  <Checkbox
+                    checked={selectedItems.includes(item.id)}
+                    onCheckedChange={() => toggleItemSelection(item.id)}
+                  />
+                </TableCell>
+                {activeColumns.map((column) => (
+                  <TableCell key={column}>
+                    <FormatCellValue item={item} column={column} />
+                  </TableCell>
+                ))}
+                <TableCell>
+                  <div className="flex items-center space-x-2">
+                    <Button variant="ghost" size="icon" onClick={() => {
+                      setSelectedItem(item);
+                      setIsEditDialogOpen(true);
+                    }}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => {
+                      setSelectedItem(item);
+                      setIsDuplicateDialogOpen(true);
+                    }}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Dialogs */}
+      <AddItemDialog
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        onSubmit={handleAddItem}
+        categories={categories}
+        units={units}
+        locations={locations}
+        suppliers={suppliers}
+        projects={projects}
+        selectedTemplate={location.state?.template}
+      />
+
+      {selectedItem && (
+        <>
+          <EditItemDialog
+            item={selectedItem}
+            isOpen={isEditDialogOpen}
+            onClose={() => setIsEditDialogOpen(false)}
+            onSave={handleSaveEdit}
+            categories={flattenedCategories}
+            units={units}
+            locations={locations}
+            suppliers={suppliers}
+            projects={projects}
+          />
+
+          <DuplicateItemDialog
+            isOpen={isDuplicateDialogOpen}
+            onClose={() => setIsDuplicateDialogOpen(false)}
+            item={selectedItem as InventoryItem}
+            onDuplicate={handleDuplicateItem}
+          />
+        </>
       )}
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{itemToDelete?.name}" from your inventory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <ExportDialog
+        isOpen={isExportDialogOpen}
+        onClose={() => setIsExportDialogOpen(false)}
+        items={filteredItems}
+        defaultFilename={`inventory_export_${new Date().toISOString().split('T')[0]}_${filteredItems.length}_items`}
+      />
     </div>
   );
 }

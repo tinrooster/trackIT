@@ -1,11 +1,20 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { toast } from 'sonner';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { toast } from 'react-hot-toast';
+import { hashPassword, comparePasswords } from '../utils/passwordUtils';
 
 export interface User {
   id: string;
   username: string;
   displayName: string;
   role: 'admin' | 'user' | 'viewer';
+  securityQuestion?: string;
+  securityAnswer?: string;
+  phoneExtension?: string;
+  phoneNumber?: string;
+}
+
+export interface UserWithPassword extends User {
+  password: string;
 }
 
 interface AuthContextType {
@@ -16,6 +25,13 @@ interface AuthContextType {
   login: (username: string, password: string, remember: boolean) => Promise<boolean>;
   logout: () => void;
   setPersistence: (isPersistent: boolean) => void;
+  resetPassword: (username: string, securityAnswer: string, newPassword: string) => Promise<boolean>;
+  verifySecurityAnswer: (username: string, answer: string) => Promise<boolean>;
+  adminResetPassword: (username: string, newPassword: string) => Promise<boolean>;
+}
+
+interface AuthProviderProps {
+  children: ReactNode;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,23 +40,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const USER_STORAGE_KEY = 'inventory-user';
 const PERSISTENCE_KEY = 'inventory-auth-persistent';
 
-// Mock users for demo purposes
-const MOCK_USERS: Record<string, { password: string, user: User }> = {
-  'admin': {
-    password: 'admin123',
-    user: { id: '1', username: 'admin', displayName: 'Administrator', role: 'admin' }
-  },
-  'user': {
-    password: 'user123',
-    user: { id: '2', username: 'user', displayName: 'Regular User', role: 'user' }
-  },
-  'viewer': {
-    password: 'viewer123',
-    user: { id: '3', username: 'viewer', displayName: 'View Only', role: 'viewer' }
-  }
-};
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPersistent, setIsPersistent] = useState(false);
@@ -49,6 +49,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkExistingSession = () => {
       try {
+        // Check if we have any users, if not create a default admin
+        const storedUsers = localStorage.getItem('inventory-users');
+        if (!storedUsers) {
+          const defaultAdmin: UserWithPassword = {
+            id: crypto.randomUUID(),
+            username: 'admin',
+            displayName: 'Administrator',
+            role: 'admin',
+            password: 'admin', // Default password
+            securityQuestion: 'What is the default password?',
+            securityAnswer: 'admin'
+          };
+          localStorage.setItem('inventory-users', JSON.stringify([defaultAdmin]));
+          toast.info('Created default admin account (username: admin, password: admin)');
+        }
+
         // Check if we have a persistent login setting
         const persistentSetting = localStorage.getItem(PERSISTENCE_KEY);
         const shouldPersist = persistentSetting === 'true';
@@ -81,13 +97,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
 
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Get stored users from localStorage
+      const storedUsers = localStorage.getItem('inventory-users');
+      if (!storedUsers) {
+        // Create default admin if no users exist
+        const defaultAdmin: UserWithPassword = {
+          id: crypto.randomUUID(),
+          username: 'admin',
+          displayName: 'Administrator',
+          role: 'admin',
+          password: 'admin',
+          securityQuestion: 'What is the default password?',
+          securityAnswer: 'admin'
+        };
+        localStorage.setItem('inventory-users', JSON.stringify([defaultAdmin]));
+        toast.info('Created default admin account (username: admin, password: admin)');
+        
+        // Try login again with the same credentials
+        return login(username, password, remember);
+      }
 
-      // Check credentials against mock users
-      const userRecord = MOCK_USERS[username.toLowerCase()];
+      const users: UserWithPassword[] = JSON.parse(storedUsers);
+      const userRecord = users.find(u => u.username.toLowerCase() === username.toLowerCase());
       
-      if (!userRecord || userRecord.password !== password) {
+      if (!userRecord) {
+        toast.error('Invalid username or password');
+        return false;
+      }
+
+      // Compare passwords directly since we're not using real hashing in demo
+      if (!comparePasswords(password, userRecord.password)) {
         toast.error('Invalid username or password');
         return false;
       }
@@ -96,13 +135,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsPersistent(remember);
       localStorage.setItem(PERSISTENCE_KEY, String(remember));
 
-      // Store user in appropriate storage
+      // Store user in appropriate storage (without password)
+      const { password: _, ...userWithoutPassword } = userRecord;
       const storage = remember ? localStorage : sessionStorage;
-      storage.setItem(USER_STORAGE_KEY, JSON.stringify(userRecord.user));
+      storage.setItem(USER_STORAGE_KEY, JSON.stringify(userWithoutPassword));
       
       // Update state
-      setUser(userRecord.user);
-      toast.success(`Welcome, ${userRecord.user.displayName}`);
+      setUser(userWithoutPassword);
+      toast.success(`Welcome, ${userWithoutPassword.displayName}`);
       return true;
     } catch (error) {
       console.error('Login error:', error);
@@ -139,6 +179,107 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const verifySecurityAnswer = async (username: string, answer: string): Promise<boolean> => {
+    try {
+      const storedUsers = localStorage.getItem('inventory-users');
+      if (!storedUsers) {
+        toast.error('No users found in the system');
+        return false;
+      }
+
+      const users: UserWithPassword[] = JSON.parse(storedUsers);
+      const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+      
+      if (!user) {
+        toast.error('User not found');
+        return false;
+      }
+
+      if (!user.securityAnswer) {
+        toast.error('No security question set up for this user');
+        return false;
+      }
+
+      return user.securityAnswer.toLowerCase() === answer.toLowerCase();
+    } catch (error) {
+      console.error('Security verification error:', error);
+      return false;
+    }
+  };
+
+  const resetPassword = async (username: string, securityAnswer: string, newPassword: string): Promise<boolean> => {
+    try {
+      const storedUsers = localStorage.getItem('inventory-users');
+      if (!storedUsers) {
+        toast.error('No users found in the system');
+        return false;
+      }
+
+      const users: UserWithPassword[] = JSON.parse(storedUsers);
+      const userIndex = users.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+      
+      if (userIndex === -1) {
+        toast.error('User not found');
+        return false;
+      }
+
+      // Verify security answer
+      if (users[userIndex].securityAnswer?.toLowerCase() !== securityAnswer.toLowerCase()) {
+        toast.error('Security answer is incorrect');
+        return false;
+      }
+
+      // Update the user's password
+      users[userIndex].password = newPassword;
+      localStorage.setItem('inventory-users', JSON.stringify(users));
+      
+      toast.success('Password reset successful');
+      return true;
+    } catch (error) {
+      console.error('Password reset error:', error);
+      toast.error('Failed to reset password');
+      return false;
+    }
+  };
+
+  const adminResetPassword = async (username: string, newPassword: string): Promise<boolean> => {
+    if (!user || user.role !== 'admin') {
+      toast.error("Only admin users can reset passwords");
+      return false;
+    }
+
+    try {
+      const storedUsers = localStorage.getItem('inventory-users');
+      if (!storedUsers) {
+        toast.error('No users found in the system');
+        return false;
+      }
+
+      const users: UserWithPassword[] = JSON.parse(storedUsers);
+      const userIndex = users.findIndex(u => u.username === username);
+
+      if (userIndex === -1) {
+        toast.error("User not found");
+        return false;
+      }
+
+      // Update password
+      const hashedPassword = await hashPassword(newPassword);
+      users[userIndex] = {
+        ...users[userIndex],
+        password: hashedPassword
+      };
+
+      localStorage.setItem('inventory-users', JSON.stringify(users));
+      toast.success(`Password reset for user ${username}`);
+      return true;
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      toast.error("Failed to reset password");
+      return false;
+    }
+  };
+
   const value = {
     user,
     isAuthenticated: !!user,
@@ -146,16 +287,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isLoading,
     login,
     logout,
-    setPersistence
+    setPersistence,
+    resetPassword,
+    verifySecurityAnswer,
+    adminResetPassword
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+}
 
-export const useAuth = (): AuthContextType => {
+export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
+}

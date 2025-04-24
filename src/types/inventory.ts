@@ -41,3 +41,17 @@ export interface InventoryHistoryEntry {
 export interface Template extends Omit<InventoryItem, 'id' | 'lastUpdated'> {
   templateName: string;
 }
+
+export interface CategoryNode {
+  id: string;
+  name: string;
+  children?: CategoryNode[];
+  parentId?: string;
+  path?: string; // Stores full path like "Electronics/Computers/Laptops"
+}
+
+export interface ItemWithSubcategories {
+  id: string;
+  name: string;
+  subcategories?: string[];
+}

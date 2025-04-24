@@ -11,12 +11,9 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * Formats a number as currency
  */
-export function formatCurrency(value: number | undefined, currency: string = 'USD'): string {
-  if (value === undefined || value === null) return 'N/A';
-  return new Intl.NumberFormat('en-US', { 
-    style: 'currency', 
-    currency 
-  }).format(value);
+export function formatCurrency(value: number | undefined | null, currency: string = 'USD'): string {
+  if (value === undefined || value === null) return '-';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
 }
 
 /**

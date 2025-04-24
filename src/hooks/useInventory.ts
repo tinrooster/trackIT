@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { InventoryItem } from '@/types/inventory' // Ensure OrderStatus is exported or defined here if needed
+import { InventoryItem, CategoryNode } from '@/types/inventory'
 import { getItems, saveItems, getSettings, saveSettings } from '@/lib/storageService' 
 import { DUMMY_INVENTORY_DATA } from '@/lib/dummyData'; 
 import { toast } from 'sonner'; 
@@ -14,7 +14,7 @@ export function useInventory() {
   const [history, setHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [units, setUnits] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
@@ -41,11 +41,11 @@ export function useInventory() {
       setItems(loadedItems);
       
       // Load settings
-      setCategories(getSettings('CATEGORIES'));
-      setUnits(getSettings('UNITS'));
-      setLocations(getSettings('LOCATIONS'));
-      setSuppliers(getSettings('SUPPLIERS'));
-      setProjects(getSettings('PROJECTS'));
+      setCategories(getSettings('CATEGORIES') as CategoryNode[]);
+      setUnits(getSettings('UNITS') as string[]);
+      setLocations(getSettings('LOCATIONS') as string[]);
+      setSuppliers(getSettings('SUPPLIERS') as string[]);
+      setProjects(getSettings('PROJECTS') as string[]);
 
       // Load history
       const loadedHistory = localStorage.getItem('inventoryHistory');

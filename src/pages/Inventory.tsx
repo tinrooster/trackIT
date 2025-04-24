@@ -113,7 +113,8 @@ export default function InventoryPage() {
               // Handle edit action
               console.log("Edit item:", item);
             }}
-            initialFilter={filter}
+            searchQuery={filter}
+            filters={{}}
             highlightRowId={highlightedItemId}
           />
         </div>

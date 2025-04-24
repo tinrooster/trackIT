@@ -12,6 +12,8 @@ The application follows a modern React architecture with the following key chara
 - **Form Handling**: Uses React Hook Form with Zod validation
 - **Data Persistence**: Uses browser localStorage
 - **UI Design System**: Custom components based on shadcn/ui design principles
+- **Error Handling**: Global error boundary for application stability
+- **Template System**: Reusable item templates for quick creation
 
 ## Directory Structure
 
@@ -38,12 +40,15 @@ src/
 - **Input/Textarea**: Text input components
 - **Table**: Data table with sorting and filtering
 - **Toast**: Notification system for user feedback
+- **ErrorBoundary**: Global error handling component
 
 ### Feature Components
 
 - **AddItemDialog/Form**: Components for adding new inventory items
 - **BarcodeScanner**: Component for scanning barcodes using the device camera
+- **BatchOperations**: Component for performing bulk actions on inventory items
 - **DashboardSummaryCard**: Card component for dashboard metrics
+- **ErrorBoundary**: Component for catching and handling runtime errors
 - **InventoryAdjustment**: Component for adjusting item quantities
 - **InventoryHistory**: Component for displaying history of inventory changes
 - **InventoryTable**: Table component for displaying inventory items
@@ -51,6 +56,8 @@ src/
 - **LowStockItemsTable**: Component for displaying items below reorder level
 - **Navigation**: Navigation bar component
 - **QuickLookup**: Component for quickly finding items
+- **TemplateForm**: Component for creating and managing item templates
+- **UsersTab**: Component for user management interface
 
 ## Data Model
 
@@ -72,6 +79,26 @@ interface InventoryItem {
   supplierWebsite?: string;
   project?: string;
   lastUpdated: Date;
+  lastModifiedBy?: string;
+}
+```
+
+### InventoryTemplate
+
+```typescript
+interface InventoryTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  unit: string;
+  defaultLocation?: string;
+  defaultReorderLevel?: number;
+  defaultNotes?: string;
+  defaultSupplier?: string;
+  defaultProject?: string;
+  createdBy: string;
+  lastUpdated: Date;
 }
 ```
 
@@ -85,6 +112,7 @@ interface InventoryHistoryEntry {
   newQuantity: number;
   reason: string;
   timestamp: Date;
+  modifiedBy?: string;
 }
 ```
 
@@ -102,6 +130,11 @@ The `storageService.ts` module provides functions for interacting with localStor
 - **addHistoryEntry**: Adds a new history entry
 - **getSettings**: Retrieves settings (categories, units, etc.)
 - **saveSettings**: Saves settings
+- **getTemplates**: Retrieves all item templates
+- **saveTemplates**: Saves all item templates
+- **addTemplate**: Adds a new template
+- **updateTemplate**: Updates an existing template
+- **deleteTemplate**: Deletes a template
 
 ## Form Validation
 
@@ -114,6 +147,41 @@ const formSchema = z.object({
   unit: z.string().min(1, { message: "Unit is required." }),
   // Additional fields with validation rules
 });
+
+const templateSchema = z.object({
+  name: z.string().min(2, { message: "Template name must be at least 2 characters." }),
+  unit: z.string().min(1, { message: "Unit is required." }),
+  // Additional template-specific fields
+});
+```
+
+## Error Boundary
+
+The application implements a global error boundary to catch and handle runtime errors:
+
+```typescript
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log error to error reporting service
+    console.error('Error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <ErrorFallback error={this.state.error} />;
+    }
+    return this.props.children;
+  }
+}
 ```
 
 ## Barcode Scanning
@@ -156,6 +224,7 @@ Routing is implemented using React Router:
     <Route path="/dashboard" element={<DashboardPage />} />
     <Route path="/inventory" element={<InventoryPage />} />
     <Route path="/inventory/:id" element={<ItemDetailsPage />} />
+    <Route path="/templates" element={<TemplatesPage />} />
     <Route path="/reports" element={<ReportsPage />} />
     <Route path="/settings" element={<SettingsPage />} />
   </Routes>
@@ -177,6 +246,7 @@ The application uses Tailwind CSS for styling, with a custom theme defined in `t
 - **Pagination**: Implements pagination for large data sets
 - **Filtering**: Implements client-side filtering for quick searches
 - **Lazy Loading**: Could be implemented for larger applications
+- **Batch Operations**: Optimized for handling multiple items simultaneously
 
 ## Security Considerations
 
@@ -184,6 +254,7 @@ The application uses Tailwind CSS for styling, with a custom theme defined in `t
 - **XSS Prevention**: React's built-in protections against XSS
 - **CORS**: Not applicable for a client-only application
 - **Authentication**: Not implemented in the current version
+- **Error Handling**: Global error boundary for application stability
 
 ## Future Enhancements
 
@@ -194,3 +265,5 @@ The application uses Tailwind CSS for styling, with a custom theme defined in `t
 - **Advanced Reporting**: Add more sophisticated reporting capabilities
 - **Barcode Generation**: Generate barcodes for items
 - **Inventory Forecasting**: Predict future inventory needs
+- **Template Versioning**: Track changes to templates over time
+- **Batch Operation Templates**: Create reusable batch operation templates
