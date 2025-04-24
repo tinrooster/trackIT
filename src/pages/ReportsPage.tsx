@@ -1,179 +1,236 @@
-import React, { useState, useMemo } from 'react'
-import { useInventory } from '@/hooks/useInventory'
-import { InventoryHistory } from '@/components/InventoryHistory'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CategorySummary } from '@/components/CategorySummary'
-import { ProjectSummary } from '@/components/ProjectSummary'
-import { ProjectDetailedReport } from '@/components/ProjectDetailedReport'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
-import { FileDown } from 'lucide-react'
-import { exportToExcel } from '@/lib/exportUtils'
-import { toast } from 'sonner'
+import React from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { InventoryItem } from '@/types/inventory';
+import { Download, FileDown, AlertCircle } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { STORAGE_KEYS, getSettings } from '@/lib/storageService';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function ReportsPage() {
-  const { items, history } = useInventory()
-  const [selectedProject, setSelectedProject] = useState<string>('all')
-  
-  // Get unique projects from inventory items
-  const projects = useMemo(() => {
-    const projectSet = new Set<string>()
-    items.forEach(item => {
-      if (item.project) {
-        projectSet.add(item.project)
-      }
-    })
-    return Array.from(projectSet).sort()
-  }, [items])
-  
-  // Filter items by selected project
-  const projectItems = useMemo(() => {
-    if (selectedProject === 'all') return items
-    return items.filter(item => item.project === selectedProject)
-  }, [items, selectedProject])
-  
-  // Generate project report data
-  const projectReportData = useMemo(() => {
-    // Group by supplier and item name
-    const supplierGroups: Record<string, any> = {}
+  const [items] = useLocalStorage<InventoryItem[]>('inventoryItems', []);
+  const { toast } = useToast();
+
+  const generateCSV = (data: any[], headers: string[], filename: string) => {
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => JSON.stringify(row[header] || '')).join(','))
+    ].join('\n');
     
-    projectItems.forEach(item => {
-      const supplier = item.supplier || 'Unknown Supplier'
-      if (!supplierGroups[supplier]) {
-        supplierGroups[supplier] = {}
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Report Generated",
+      description: `${filename} has been downloaded.`,
+    });
+  };
+
+  // Project Status Report
+  const handleProjectStatusReport = () => {
+    const projectStats = items.reduce((acc, item) => {
+      const project = item.project || 'Unassigned';
+      if (!acc[project]) {
+        acc[project] = {
+          totalItems: 0,
+          pendingOrder: 0,
+          backOrdered: 0,
+          inStock: 0,
+          needsReorder: 0,
+          totalValue: 0
+        };
       }
+      acc[project].totalItems++;
+      acc[project].totalValue += (item.costPerUnit || 0) * (item.quantity || 0);
       
-      const itemKey = `${item.name} (${item.unit})`
-      if (!supplierGroups[supplier][itemKey]) {
-        supplierGroups[supplier][itemKey] = {
-          name: item.name,
-          unit: item.unit,
-          quantity: 0,
-          costPerUnit: item.costPerUnit,
-          totalCost: 0,
-          items: []
-        }
-      }
+      if (item.status === 'pending') acc[project].pendingOrder++;
+      if (item.status === 'backorder') acc[project].backOrdered++;
+      if ((item.quantity || 0) > 0) acc[project].inStock++;
+      if ((item.quantity || 0) <= (item.minQuantity || 0)) acc[project].needsReorder++;
       
-      supplierGroups[supplier][itemKey].quantity += item.quantity
-      supplierGroups[supplier][itemKey].totalCost += 
-        item.costPerUnit !== undefined ? item.quantity * item.costPerUnit : 0
-      supplierGroups[supplier][itemKey].items.push(item)
-    })
-    
-    return supplierGroups
-  }, [projectItems])
-  
-  const handleExportProjectReport = () => {
-    const reportData: any[] = []
-    
-    // Flatten the nested structure for export
-    Object.entries(projectReportData).forEach(([supplier, items]) => {
-      Object.entries(items as Record<string, any>).forEach(([itemKey, data]: [string, any]) => {
-        reportData.push({
-          'Project': selectedProject === 'all' ? 'All Projects' : selectedProject,
-          'Supplier': supplier,
-          'Item': data.name,
-          'Unit': data.unit,
-          'Quantity': data.quantity,
-          'Cost Per Unit': data.costPerUnit !== undefined ? `$${data.costPerUnit.toFixed(2)}` : 'N/A',
-          'Total Cost': data.totalCost > 0 ? `$${data.totalCost.toFixed(2)}` : 'N/A'
-        })
-      })
-    })
-    
-    if (reportData.length === 0) {
-      toast.warning('No data to export')
-      return
-    }
-    
-    const projectName = selectedProject === 'all' ? 'All_Projects' : selectedProject.replace(/\s+/g, '_')
-    exportToExcel(reportData, `Project_Report_${projectName}`, 'Project Report')
-    toast.success('Project report exported successfully')
-  }
-  
+      return acc;
+    }, {} as Record<string, any>);
+
+    const reportData = Object.entries(projectStats).map(([project, stats]) => ({
+      project,
+      ...stats
+    }));
+
+    generateCSV(
+      reportData,
+      ['project', 'totalItems', 'pendingOrder', 'backOrdered', 'inStock', 'needsReorder', 'totalValue'],
+      'project_status_report.csv'
+    );
+  };
+
+  // Critical Items Report
+  const handleCriticalItemsReport = () => {
+    const criticalItems = items.filter(item => 
+      (item.quantity || 0) <= (item.minQuantity || 0) ||
+      item.status === 'backorder' ||
+      ((item.quantity || 0) === 0 && item.status !== 'pending')
+    ).map(item => ({
+      ...item,
+      criticalReason: (item.quantity || 0) <= (item.minQuantity || 0) ? 'Low Stock' :
+                     item.status === 'backorder' ? 'Back Ordered' : 'Out of Stock',
+      daysToReorder: item.expectedDeliveryDate ? 
+        Math.ceil((new Date(item.expectedDeliveryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 
+        'N/A'
+    }));
+
+    generateCSV(
+      criticalItems,
+      ['name', 'project', 'quantity', 'minQuantity', 'criticalReason', 'status', 'daysToReorder', 'location'],
+      'critical_items_report.csv'
+    );
+  };
+
+  // Production Planning Report
+  const handleProductionPlanningReport = () => {
+    const planningData = items.map(item => ({
+      ...item,
+      stockStatus: (item.quantity || 0) <= (item.minQuantity || 0) ? 'Reorder Required' :
+                  (item.quantity || 0) === 0 ? 'Out of Stock' : 'In Stock',
+      availableForProduction: Math.max(0, (item.quantity || 0) - (item.minQuantity || 0)),
+      nextDelivery: item.expectedDeliveryDate ? new Date(item.expectedDeliveryDate).toLocaleDateString() : 'Not Scheduled'
+    }));
+
+    generateCSV(
+      planningData,
+      ['name', 'project', 'quantity', 'stockStatus', 'availableForProduction', 'nextDelivery', 'location', 'supplier'],
+      'production_planning_report.csv'
+    );
+  };
+
+  // Supplier Order Status Report
+  const handleSupplierOrderReport = () => {
+    const pendingOrders = items
+      .filter(item => item.status === 'pending' || item.status === 'backorder')
+      .map(item => ({
+        ...item,
+        orderStatus: item.status,
+        expectedDelivery: item.expectedDeliveryDate ? 
+          new Date(item.expectedDeliveryDate).toLocaleDateString() : 'Not Scheduled',
+        daysOverdue: item.expectedDeliveryDate && new Date(item.expectedDeliveryDate) < new Date() ?
+          Math.ceil((new Date().getTime() - new Date(item.expectedDeliveryDate).getTime()) / (1000 * 60 * 60 * 24)) :
+          0
+      }));
+
+    generateCSV(
+      pendingOrders,
+      ['name', 'supplier', 'project', 'orderStatus', 'expectedDelivery', 'daysOverdue', 'quantity', 'costPerUnit'],
+      'supplier_order_status_report.csv'
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Reports</h1>
-      
-      <Tabs defaultValue="projects">
-        <TabsList>
-          <TabsTrigger value="projects">Project Reports</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="projectSummary">Project Summary</TabsTrigger>
-          <TabsTrigger value="history">Inventory History</TabsTrigger>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Production Reports</h1>
+      </div>
+
+      <Tabs defaultValue="project">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+          <TabsTrigger value="project">Project Status</TabsTrigger>
+          <TabsTrigger value="critical">Critical Items</TabsTrigger>
+          <TabsTrigger value="planning">Production Planning</TabsTrigger>
+          <TabsTrigger value="orders">Order Status</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="projects" className="mt-4 space-y-4">
+
+        <TabsContent value="project" className="space-y-4">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Project Detailed Report</CardTitle>
+            <CardHeader>
+              <CardTitle>Project Status Overview</CardTitle>
+              <CardDescription>Comprehensive status report for all projects</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Project:</span>
-                  <Select value={selectedProject} onValueChange={setSelectedProject}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Projects</SelectItem>
-                      {projects.map(project => (
-                        <SelectItem key={project} value={project}>{project}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <Button variant="outline" size="sm" onClick={handleExportProjectReport}>
-                  <FileDown className="mr-2 h-4 w-4" />
-                  Export Report
-                </Button>
-              </div>
-              
-              <ProjectDetailedReport 
-                projectName={selectedProject === 'all' ? 'All Projects' : selectedProject}
-                reportData={projectReportData}
-              />
+              <p className="text-sm text-muted-foreground mb-4">
+                This report includes:
+                <br />• Total items per project
+                <br />• Items pending order/back-ordered
+                <br />• Current stock levels
+                <br />• Items needing reorder
+                <br />• Total project value
+              </p>
+              <Button onClick={handleProjectStatusReport} className="w-full">
+                <Download className="mr-2 h-4 w-4" />
+                Generate Project Status Report
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="categories" className="mt-4">
+
+        <TabsContent value="critical" className="space-y-4">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Category Analysis</CardTitle>
+            <CardHeader>
+              <CardTitle>Critical Items Report</CardTitle>
+              <CardDescription>Items requiring immediate attention</CardDescription>
             </CardHeader>
             <CardContent>
-              <CategorySummary items={items} />
+              <p className="text-sm text-muted-foreground mb-4">
+                Identifies items that are:
+                <br />• Below minimum quantity
+                <br />• Back-ordered
+                <br />• Out of stock
+                <br />• Expected delivery dates
+              </p>
+              <Button onClick={handleCriticalItemsReport} className="w-full">
+                <Download className="mr-2 h-4 w-4" />
+                Generate Critical Items Report
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="projectSummary" className="mt-4">
+
+        <TabsContent value="planning" className="space-y-4">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Project Analysis</CardTitle>
+            <CardHeader>
+              <CardTitle>Production Planning Report</CardTitle>
+              <CardDescription>Stock availability for production</CardDescription>
             </CardHeader>
             <CardContent>
-              <ProjectSummary items={items} />
+              <p className="text-sm text-muted-foreground mb-4">
+                Details include:
+                <br />• Current stock status
+                <br />• Available quantity for production
+                <br />• Next scheduled deliveries
+                <br />• Location and supplier information
+              </p>
+              <Button onClick={handleProductionPlanningReport} className="w-full">
+                <Download className="mr-2 h-4 w-4" />
+                Generate Production Planning Report
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="history" className="mt-4">
+
+        <TabsContent value="orders" className="space-y-4">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Inventory History</CardTitle>
+            <CardHeader>
+              <CardTitle>Supplier Order Status</CardTitle>
+              <CardDescription>Track pending and back-ordered items</CardDescription>
             </CardHeader>
             <CardContent>
-              <InventoryHistory history={history} />
+              <p className="text-sm text-muted-foreground mb-4">
+                Report includes:
+                <br />• Pending orders by supplier
+                <br />• Back-ordered items
+                <br />• Expected delivery dates
+                <br />• Days overdue for late items
+              </p>
+              <Button onClick={handleSupplierOrderReport} className="w-full">
+                <Download className="mr-2 h-4 w-4" />
+                Generate Order Status Report
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

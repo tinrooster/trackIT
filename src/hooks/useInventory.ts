@@ -91,16 +91,43 @@ export function useInventory() {
   ) => {
     let listSetter: React.Dispatch<React.SetStateAction<string[]>>;
     let itemField: ItemField;
-    const itemFieldMap: Record<SettingsKey, ItemField> = { /* ... map ... */ };
+    const itemFieldMap: Record<SettingsKey, ItemField> = {
+      CATEGORIES: 'category',
+      UNITS: 'unit',
+      LOCATIONS: 'location',
+      SUPPLIERS: 'supplier',
+      PROJECTS: 'project'
+    };
     itemField = itemFieldMap[listKey];
-    switch (listKey) { /* ... case statements ... */ }
+
+    switch (listKey) {
+      case 'CATEGORIES':
+        listSetter = setCategories;
+        break;
+      case 'UNITS':
+        listSetter = setUnits;
+        break;
+      case 'LOCATIONS':
+        listSetter = setLocations;
+        break;
+      case 'SUPPLIERS':
+        listSetter = setSuppliers;
+        break;
+      case 'PROJECTS':
+        listSetter = setProjects;
+        break;
+      default:
+        listSetter = setCategories; // Default case to avoid uninitialized variable
+        break;
+    }
 
     let reconciledCount = 0;
     if (reassignInfo) {
       const { valueToRemove, reassignTo } = reassignInfo;
       setItems(prevItems => {
         const updatedItems = prevItems.map(item => {
-          if (item[itemField] === valueToRemove) {
+          const fieldValue = item[itemField];
+          if (typeof fieldValue === 'string' && fieldValue === valueToRemove) {
             reconciledCount++;
             return { ...item, [itemField]: reassignTo, lastUpdated: new Date() }; 
           }
@@ -108,12 +135,15 @@ export function useInventory() {
         });
         return updatedItems; 
       });
-      if (reconciledCount > 0) { /* ... toast info ... */ }
+      if (reconciledCount > 0) {
+        toast.info(`Updated ${reconciledCount} items from ${valueToRemove} to ${reassignTo || 'unassigned'}`);
+      }
     }
+
     listSetter(newList);
     saveSettings(listKey, newList);
     if (!reassignInfo) toast.success(`${listKey.toLowerCase()} list updated.`);
-  }, [items]); // Depend on items for reconciliation
+  }, [items]);
 
   // --- Inventory Item Management ---
   const getItemById = useCallback((id: string): InventoryItem | undefined => {
@@ -257,10 +287,21 @@ export function useInventory() {
   }, [items]); // Depend on items to get the latest list for checking existence
   
   return {
-    items, history, loading,
-    categories, units, locations, suppliers, projects,
-    getItemById, addItem, updateItem, deleteItem, adjustQuantity,
-    updateSettingsList, 
-    importItems // Expose the import function
+    items,
+    setItems,
+    history,
+    loading,
+    categories,
+    units,
+    locations,
+    suppliers,
+    projects,
+    getItemById,
+    addItem,
+    updateItem,
+    deleteItem,
+    adjustQuantity,
+    updateSettingsList,
+    importItems,
   };
 }

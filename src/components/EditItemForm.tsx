@@ -30,8 +30,10 @@ const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   description: z.string().optional(),
   quantity: z.coerce.number().min(0, { message: "Quantity cannot be negative." }).default(0),
+  minQuantity: z.coerce.number().min(0).optional(),
   unit: z.string().min(1, { message: "Unit is required." }),
   costPerUnit: z.coerce.number().min(0, { message: "Cost must be non-negative" }).optional(),
+  price: z.coerce.number().min(0, { message: "Price must be non-negative" }).optional(),
   category: z.string().optional(),
   location: z.string().optional(),
   reorderLevel: z.coerce.number().min(0).optional(),
@@ -40,6 +42,8 @@ const formSchema = z.object({
   supplier: z.string().optional(),
   supplierWebsite: z.string().optional(),
   project: z.string().optional(),
+  orderStatus: z.enum(['delivered', 'partially_delivered', 'backordered', 'on_order', 'not_ordered']).default('delivered'),
+  deliveryPercentage: z.coerce.number().min(0).max(100).default(100),
 }).refine(data => {
   if (data.supplierWebsite && data.supplierWebsite.trim() !== '') {
     try {
@@ -72,30 +76,29 @@ export function EditItemForm({
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
-  const [orderStatus, setOrderStatus] = useState<OrderStatus>(item.orderStatus || 'delivered');
-  const [deliveryPercentage, setDeliveryPercentage] = useState<number>(item.deliveryPercentage || 100);
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<Date | undefined>(
-    item.expectedDeliveryDate ? new Date(item.expectedDeliveryDate) : undefined
-  );
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [isManualScanMode, setIsManualScanMode] = useState(false); // State for manual scan mode
+  const [isManualScanMode, setIsManualScanMode] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: item.name || "",
+      name: item.name,
       description: item.description || "",
-      quantity: item.quantity || 0,
-      unit: item.unit || "",
-      costPerUnit: item.costPerUnit ?? undefined,
+      quantity: item.quantity,
+      minQuantity: item.minQuantity,
+      unit: item.unit,
+      costPerUnit: item.costPerUnit,
+      price: item.price,
       category: item.category || "",
       location: item.location || "",
-      reorderLevel: item.reorderLevel ?? undefined,
+      reorderLevel: item.reorderLevel,
       barcode: item.barcode || "",
       notes: item.notes || "",
       supplier: item.supplier || "",
       supplierWebsite: item.supplierWebsite || "",
       project: item.project || "",
+      orderStatus: item.orderStatus,
+      deliveryPercentage: item.deliveryPercentage,
     },
   });
 
@@ -105,8 +108,10 @@ export function EditItemForm({
       const processedValues = {
         ...values,
         quantity: Number(values.quantity) || 0,
-        costPerUnit: values.costPerUnit === undefined || values.costPerUnit === null ? undefined : Number(values.costPerUnit),
-        reorderLevel: values.reorderLevel === undefined || values.reorderLevel === null ? undefined : Number(values.reorderLevel),
+        minQuantity: values.minQuantity === undefined ? undefined : Number(values.minQuantity),
+        costPerUnit: values.costPerUnit === undefined ? undefined : Number(values.costPerUnit),
+        price: values.price === undefined ? undefined : Number(values.price),
+        reorderLevel: values.reorderLevel === undefined ? undefined : Number(values.reorderLevel),
         barcode: values.barcode?.trim() || undefined,
         category: values.category?.trim() || undefined,
         location: values.location?.trim() || undefined,
@@ -115,13 +120,12 @@ export function EditItemForm({
         supplierWebsite: ensureUrlProtocol(values.supplierWebsite?.trim()),
         project: values.project?.trim() || undefined,
         unit: values.unit.trim(),
-        orderStatus,
-        deliveryPercentage,
-        expectedDeliveryDate,
+        orderStatus: values.orderStatus,
+        deliveryPercentage: Number(values.deliveryPercentage) || 100,
+        expectedDeliveryDate: item.expectedDeliveryDate,
       };
       
-      // Pass the processed values (excluding id and lastUpdated) to the onSubmit handler
-      await onSubmit(processedValues); 
+      await onSubmit(processedValues);
     } catch (error) {
       console.error("Form submission error:", error);
       toast.error("Failed to submit form");
@@ -172,6 +176,10 @@ export function EditItemForm({
                   {form.formState.errors.quantity && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.quantity.message}</p>}
                 </div>
                 <div>
+                  <Label htmlFor="minQuantity">Minimum Quantity</Label>
+                  <Input id="minQuantity" type="number" min="0" step="any" {...form.register("minQuantity")} />
+                </div>
+                <div>
                   <Label htmlFor="unit">Unit*</Label>
                   <select id="unit" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("unit")}>
                     <option value="">Select unit...</option>
@@ -180,14 +188,13 @@ export function EditItemForm({
                   </select>
                   {form.formState.errors.unit && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.unit.message}</p>}
                 </div>
-                 <div>
+                <div>
                   <Label htmlFor="costPerUnit">Cost Per Unit ($)</Label>
                   <Input id="costPerUnit" type="number" min="0" step="0.01" placeholder="e.g., 1.25" {...form.register("costPerUnit")} />
-                   {form.formState.errors.costPerUnit && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.costPerUnit.message}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="reorderLevel">Reorder Level</Label>
-                  <Input id="reorderLevel" type="number" min="0" placeholder="Min quantity" {...form.register("reorderLevel")} />
+                  <Label htmlFor="price">Price ($)</Label>
+                  <Input id="price" type="number" min="0" step="0.01" placeholder="e.g., 1.99" {...form.register("price")} />
                 </div>
               </div>
               {/* Column 2 */}
@@ -206,63 +213,6 @@ export function EditItemForm({
                     {locations.map(location => <option key={location} value={location}>{location}</option>)}
                   </select>
                 </div>
-                
-                {/* Barcode Input Section */}
-                <div>
-                  <Label htmlFor="barcode">Barcode</Label>
-                  {isManualScanMode ? (
-                    <div className="space-y-2">
-                      <ManualBarcodeInput 
-                        onBarcodeDetected={handleScanResult}
-                        placeholder="Waiting for barcode scan..."
-                        isActive={isManualScanMode} // Ensure it's active when mode is on
-                      />
-                      <div className="flex justify-between items-center">
-                        <p className="text-xs text-muted-foreground">
-                          Bluetooth scanner mode active
-                        </p>
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={toggleManualScanMode}
-                          className="text-xs h-auto p-1"
-                        >
-                          <Camera className="h-3 w-3 mr-1"/> Use Camera / Manual
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex space-x-2">
-                      <Input 
-                        id="barcode" 
-                        placeholder="Optional barcode" 
-                        {...form.register("barcode")} 
-                        className="flex-1" 
-                      />
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={() => setIsScannerOpen(true)} 
-                        title="Scan Barcode with Camera"
-                      >
-                        <ScanLine className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={toggleManualScanMode} 
-                        title="Use Bluetooth Scanner"
-                      >
-                        <Keyboard className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                {/* End Barcode Input Section */}
-
                 <div>
                   <Label htmlFor="supplier">Supplier</Label>
                   <select id="supplier" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("supplier")}>
@@ -271,53 +221,89 @@ export function EditItemForm({
                   </select>
                 </div>
                 <div>
-                  <Label htmlFor="supplierWebsite">Supplier Website</Label>
-                  <Input id="supplierWebsite" placeholder="example.com or https://example.com" {...form.register("supplierWebsite")} />
-                  {form.formState.errors.supplierWebsite && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.supplierWebsite.message}</p>}
-                </div>
-                <div>
                   <Label htmlFor="project">Project</Label>
                   <select id="project" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("project")}>
                     <option value="">Select project...</option>
                     {projects.map(project => <option key={project} value={project}>{project}</option>)}
                   </select>
                 </div>
+                <div>
+                  <Label htmlFor="supplierWebsite">Supplier Website</Label>
+                  <Input id="supplierWebsite" type="url" placeholder="e.g., www.supplier.com" {...form.register("supplierWebsite")} />
+                </div>
+                <div>
+                  <Label htmlFor="reorderLevel">Reorder Level</Label>
+                  <Input id="reorderLevel" type="number" min="0" placeholder="Min quantity" {...form.register("reorderLevel")} />
+                </div>
+                <div>
+                  <Label htmlFor="barcode">Barcode</Label>
+                  <div className="flex gap-2">
+                    <Input id="barcode" {...form.register("barcode")} />
+                    <Button type="button" variant="outline" size="icon" onClick={toggleManualScanMode}>
+                      {isManualScanMode ? <Keyboard className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
             <div>
               <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" placeholder="Additional notes" className="resize-none" {...form.register("notes")} />
+              <Textarea id="notes" placeholder="Additional notes..." className="resize-none" {...form.register("notes")} />
             </div>
           </TabsContent>
-          
+
           <TabsContent value="order" className="space-y-4">
-            <div className="border rounded-lg p-4 bg-muted/20">
-              <OrderStatusSelector
-                orderStatus={orderStatus}
-                deliveryPercentage={deliveryPercentage}
-                expectedDeliveryDate={expectedDeliveryDate}
-                onStatusChange={setOrderStatus}
-                onPercentageChange={setDeliveryPercentage}
-                onDateChange={setExpectedDeliveryDate}
-              />
+            <div className="space-y-4">
+              <div>
+                <Label>Order Status</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...form.register("orderStatus")}
+                >
+                  <option value="delivered">Delivered</option>
+                  <option value="partially_delivered">Partially Delivered</option>
+                  <option value="backordered">Backordered</option>
+                  <option value="on_order">On Order</option>
+                  <option value="not_ordered">Not Ordered</option>
+                </select>
+              </div>
+              <div>
+                <Label>Delivery Percentage</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  {...form.register("deliveryPercentage")}
+                />
+              </div>
             </div>
           </TabsContent>
         </Tabs>
-        
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Changes
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Save Changes
+              </>
+            )}
           </Button>
         </div>
       </form>
 
-      {/* Barcode Scanner Dialog */}
       <BarcodeScannerDialog
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onScanResult={handleScanResult}
+        open={isScannerOpen}
+        onOpenChange={setIsScannerOpen}
+        onScan={handleScanResult}
       />
     </>
   );

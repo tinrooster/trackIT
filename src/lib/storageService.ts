@@ -39,10 +39,23 @@ export const saveItems = (items: InventoryItem[]): void => {
   }
 };
 
+// Constants for storage keys
+export const STORAGE_KEYS = {
+  CATEGORIES: 'inventory-categories',
+  UNITS: 'inventory-units',
+  LOCATIONS: 'inventory-locations',
+  SUPPLIERS: 'inventory-suppliers',
+  PROJECTS: 'inventory-projects',
+  ITEMS: 'inventoryItems',
+  HISTORY: 'inventoryHistory',
+  GENERAL_SETTINGS: 'inventory-general-settings',
+  USERS: 'users',
+};
+
 // Get settings from localStorage
 export const getSettings = (key: string): string[] => {
   try {
-    const settings = localStorage.getItem(key);
+    const settings = localStorage.getItem(STORAGE_KEYS[key as keyof typeof STORAGE_KEYS] || key);
     return settings ? JSON.parse(settings) : [];
   } catch (error) {
     console.error(`Error getting ${key} from localStorage:`, error);
@@ -53,7 +66,7 @@ export const getSettings = (key: string): string[] => {
 // Save settings to localStorage
 export const saveSettings = (key: string, values: string[]): void => {
   try {
-    localStorage.setItem(key, JSON.stringify(values));
+    localStorage.setItem(STORAGE_KEYS[key as keyof typeof STORAGE_KEYS] || key, JSON.stringify(values));
   } catch (error) {
     console.error(`Error saving ${key} to localStorage:`, error);
   }

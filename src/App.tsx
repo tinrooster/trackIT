@@ -1,93 +1,84 @@
-import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { Navigation } from './components/Navigation'
-import DashboardPage from './pages/DashboardPage'
-import InventoryPage from './pages/InventoryPage'
-import ReportsPage from './pages/ReportsPage'
-import SettingsPage from './components/SettingsPage' // This is correct - from components
-import ItemDetailsPage from './pages/ItemDetailsPage'
-import { Toaster } from 'sonner'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { LoginPage } from './components/LoginPage'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Navigation } from './components/Navigation';
+import InventoryPage from './pages/InventoryPage';
+import DashboardPage from './pages/DashboardPage';
+import SettingsPage from './pages/SettingsPage';
+import ReportsPage from './pages/ReportsPage';
+import { Toaster } from './components/ui/toaster';
+import { useEffect } from 'react';
+import { useAuth } from './contexts/AuthContext';
+import { initializeSettings } from './lib/dummyData';
+import { TemplatesPage } from './pages/TemplatesPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Protected route component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
-    // You could show a loading spinner here
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
-  }
-
-  if (!isAuthenticated) {
-    // Redirect to login page but save the location they tried to access
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;
-};
-
-// Main app layout with navigation
-const AppLayout = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
-  
-  return (
-    <>
-      {isAuthenticated && <Navigation />}
-      <div className="container mx-auto p-4">
-        {children}
-      </div>
-    </>
-  );
-};
+}
 
 export default function App() {
+  useEffect(() => {
+    initializeSettings();
+  }, []);
+
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Toaster position="bottom-right" />
-        <AppLayout>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <main className="container mx-auto py-6 px-4">
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/inventory" element={
-              <ProtectedRoute>
-                <InventoryPage />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/inventory/:id" element={
-              <ProtectedRoute>
-                <ItemDetailsPage />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/reports" element={
-              <ProtectedRoute>
-                <ReportsPage />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <SettingsPage />
-              </ProtectedRoute>
-            } />
-            
-            {/* Catch all route - redirect to dashboard */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory"
+              element={
+                <ProtectedRoute>
+                  <InventoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/templates"
+              element={
+                <ProtectedRoute>
+                  <TemplatesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <ReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </AppLayout>
-      </AuthProvider>
-    </BrowserRouter>
-  )
+        </main>
+        <Toaster />
+      </div>
+    </ErrorBoundary>
+  );
 }

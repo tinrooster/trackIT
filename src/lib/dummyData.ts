@@ -1,12 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
 import { InventoryItem, OrderStatus } from '@/types/inventory';
 import { subDays, addDays } from 'date-fns';
+import { STORAGE_KEYS } from "./storageService";
 
 const categories = ["Cable", "Connector", "Hardware", "Tool", "Software", "Expendable", "Fiber Optic", "Power", "Networking", "Audio", "Video", "Lighting"];
 const units = ["ft", "each", "box", "spool", "kit", "license", "pair", "meter"];
-const locations = ["Warehouse A", "Shelf B3", "Truck 1", "Server Room", "Edit Bay 2", "Studio C", "Tech Bench", "Remote Kit"];
+const locations = ["Rm 105 A", "Engineering Store", "PCR 1 Project Area", "TE Room", "Lighting Rm", "Studio ", "Tech Bench", "Remote Kit"];
 const suppliers = ["Joseph Electronics", "Markertek", "B&H Photo", "Clark Wire & Cable", "Amazon Business", "Sweetwater", "Local Hardware"];
-const projects = ["2025:SUTRO", "2024:NAB", "MAINTENANCE", "STUDIO_UPGRADE", "REMOTE_KIT_BUILD", "INFRASTRUCTURE"];
+const projects = ["2025:SUTRO", "2024:NAB", "MAINTENANCE", "STUDIO_UPGRADE", "Ultrix", "INFRASTRUCTURE"];
 const orderStatuses: OrderStatus[] = ['delivered', 'partially_delivered', 'backordered', 'on_order', 'not_ordered'];
 
 const generateRandomDate = (start: Date, end: Date): Date => {
@@ -33,7 +34,9 @@ for (let i = 0; i < 200; i++) {
   const unit = units[generateRandomInt(0, units.length - 1)];
   const quantity = generateRandomInt(0, category === "Cable" ? 5000 : 100);
   const costPerUnit = category === "Cable" ? generateRandomFloat(0.10, 1.50) : generateRandomFloat(5, 500);
+  const price = costPerUnit * 1.3; // 30% markup
   const reorderLevel = generateRandomInt(0, quantity > 10 ? Math.floor(quantity * 0.3) : 5);
+  const minQuantity = reorderLevel;
   const orderStatus = orderStatuses[generateRandomInt(0, orderStatuses.length - 1)];
   const deliveryPercentage = orderStatus === 'delivered' ? 100 : (orderStatus === 'partially_delivered' ? generateRandomInt(30, 90) : (orderStatus === 'on_order' ? generateRandomInt(0, 50) : 0));
   const lastUpdated = generateRandomDate(subDays(new Date(), 90), new Date());
@@ -44,8 +47,10 @@ for (let i = 0; i < 200; i++) {
     name: `${category} Item ${i + 1}`,
     description: `Generated dummy description for ${category} item #${i + 1}`,
     quantity: quantity,
+    minQuantity: minQuantity,
     unit: unit,
     costPerUnit: Math.random() > 0.1 ? costPerUnit : undefined, // Some items without cost
+    price: Math.random() > 0.1 ? price : undefined, // Some items without price
     category: category,
     location: locations[generateRandomInt(0, locations.length - 1)],
     reorderLevel: Math.random() > 0.2 ? reorderLevel : undefined, // Some items without reorder level
@@ -61,14 +66,16 @@ for (let i = 0; i < 200; i++) {
   });
 }
 
-// Add a specific item like the example
+// Update the specific example item
 dummyItems.push({
   id: uuidv4(),
   name: "Belden 1855a Yellow",
   description: "1000ft Spool, SDI Cable",
   quantity: 10, // 10 delivered
+  minQuantity: 5,
   unit: "spool",
   costPerUnit: 340,
+  price: 442, // ~30% markup
   category: "Cable",
   location: "Warehouse A",
   reorderLevel: 5,
@@ -82,5 +89,24 @@ dummyItems.push({
   deliveryPercentage: Math.round((10/14)*100), // ~71%
   expectedDeliveryDate: addDays(new Date(), 14)
 });
+
+// Initial settings data
+export const INITIAL_SETTINGS = {
+  [STORAGE_KEYS.CATEGORIES]: categories,
+  [STORAGE_KEYS.UNITS]: units,
+  [STORAGE_KEYS.LOCATIONS]: locations,
+  [STORAGE_KEYS.SUPPLIERS]: suppliers,
+  [STORAGE_KEYS.PROJECTS]: projects
+};
+
+// Function to initialize settings if they don't exist
+export const initializeSettings = () => {
+  Object.entries(INITIAL_SETTINGS).forEach(([key, values]) => {
+    const existing = localStorage.getItem(key);
+    if (!existing) {
+      localStorage.setItem(key, JSON.stringify(values));
+    }
+  });
+};
 
 export const DUMMY_INVENTORY_DATA = dummyItems;

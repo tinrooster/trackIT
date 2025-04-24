@@ -1,102 +1,117 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { InventoryItem } from '@/types/inventory';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { PieChart, Pie, Cell, Legend, ResponsiveContainer, Tooltip } from 'recharts';
+import { InventoryItem } from '@/types/inventory';
 import { Plus, Filter } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [items] = useLocalStorage<InventoryItem[]>('inventoryItems', []);
+  const [items, setItems] = useLocalStorage<InventoryItem[]>('inventoryItems', []);
   const [activeView, setActiveView] = useState<'project' | 'location'>('project');
+  const [activeSegment, setActiveSegment] = useState<string | null>(null);
 
-  // Project data for pie chart
-  const projectData = useMemo(() => {
-    const projects: Record<string, { count: number; items: InventoryItem[] }> = {};
-    
-    items.forEach(item => {
+  // Add storage event listener
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'inventoryItems') {
+        const newItems = e.newValue ? JSON.parse(e.newValue) : [];
+        setItems(newItems);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [setItems]);
+
+  // Add periodic refresh
+  useEffect(() => {
+    const checkStorage = () => {
+      const storedItems = localStorage.getItem('inventoryItems');
+      if (storedItems) {
+        const parsedItems = JSON.parse(storedItems);
+        if (JSON.stringify(parsedItems) !== JSON.stringify(items)) {
+          setItems(parsedItems);
+        }
+      }
+    };
+
+    const interval = setInterval(checkStorage, 1000);
+    return () => clearInterval(interval);
+  }, [items, setItems]);
+
+  // Get project statistics
+  const projectStats = useMemo(() => {
+    const stats = items.reduce((acc, item) => {
       const project = item.project || 'Unassigned';
-      if (!projects[project]) {
-        projects[project] = { count: 0, items: [] };
+      if (!acc[project]) {
+        acc[project] = { count: 0, items: [], totalValue: 0 };
       }
-      
-      projects[project].count += 1;
-      projects[project].items.push(item);
-    });
-    
-    return Object.entries(projects)
+      acc[project].count += 1;
+      acc[project].items.push(item);
+      acc[project].totalValue += (item.quantity || 0) * (item.costPerUnit || 0);
+      return acc;
+    }, {} as Record<string, { count: number; items: InventoryItem[]; totalValue: number }>);
+
+    return Object.entries(stats)
       .map(([name, data]) => ({
         name,
         value: data.count,
-        items: data.items
+        items: data.items,
+        percentage: (data.count / items.length * 100).toFixed(1),
+        totalValue: data.totalValue.toFixed(2),
+        totalQuantity: data.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
       }))
       .sort((a, b) => b.value - a.value);
   }, [items]);
 
-  // Location data for pie chart
-  const locationData = useMemo(() => {
-    const locations: Record<string, { count: number; items: InventoryItem[] }> = {};
-    
-    items.forEach(item => {
+  // Get location statistics
+  const locationStats = useMemo(() => {
+    const stats = items.reduce((acc, item) => {
       const location = item.location || 'Unspecified';
-      if (!locations[location]) {
-        locations[location] = { count: 0, items: [] };
+      if (!acc[location]) {
+        acc[location] = { count: 0, items: [], totalValue: 0 };
       }
-      
-      locations[location].count += 1;
-      locations[location].items.push(item);
-    });
-    
-    return Object.entries(locations)
+      acc[location].count += 1;
+      acc[location].items.push(item);
+      acc[location].totalValue += (item.quantity || 0) * (item.costPerUnit || 0);
+      return acc;
+    }, {} as Record<string, { count: number; items: InventoryItem[]; totalValue: number }>);
+
+    return Object.entries(stats)
       .map(([name, data]) => ({
         name,
         value: data.count,
-        items: data.items
+        items: data.items,
+        percentage: (data.count / items.length * 100).toFixed(1),
+        totalValue: data.totalValue.toFixed(2),
+        totalQuantity: data.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
       }))
       .sort((a, b) => b.value - a.value);
   }, [items]);
 
-  // Colors for pie chart
-  const COLORS = [
-    '#0088FE', '#00C49F', '#FFBB28', '#FF8042', 
-    '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1',
-    '#a4de6c', '#d0ed57', '#83a6ed', '#8884d8',
-    '#f5222d', '#fa8c16', '#faad14', '#fadb14',
-    '#a0d911', '#52c41a', '#13c2c2', '#1890ff'
+  const activeStats = activeView === 'project' ? projectStats : locationStats;
+  const colors = [
+    '#3B82F6', // 2024:NAB - bright blue
+    '#10B981', // REMOTE_KIT_BUILD - emerald green
+    '#F59E0B', // STUDIO_UPGRADE - amber
+    '#F97316', // INFRASTRUCTURE - orange
+    '#A78BFA', // Unassigned - purple
+    '#84CC16', // 2025:SUTRO - lime green
+    '#FCD34D'  // MAINTENANCE - yellow
   ];
 
-  const handleItemClick = (data: { name: string }) => {
-    if (activeView === 'project') {
-      navigate(`/inventory?project=${encodeURIComponent(data.name)}`);
-    } else {
-      navigate(`/inventory?location=${encodeURIComponent(data.name)}`);
-    }
+  const getTooltipContent = (stat: any) => {
+    return `${stat.name}\n${stat.value} items\nTotal Quantity: ${stat.totalQuantity}\nTotal Value: $${stat.totalValue}`;
   };
-
-  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }: any) => {
-    const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-    return (
-      <text 
-        x={x} 
-        y={y} 
-        fill="white" 
-        textAnchor={x > cx ? 'start' : 'end'} 
-        dominantBaseline="central"
-        fontSize={12}
-      >
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    );
-  };
-
-  const activeData = activeView === 'project' ? projectData : locationData;
 
   return (
     <div className="space-y-6">
@@ -111,10 +126,8 @@ export default function DashboardPage() {
       {items.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>Welcome to TEd_Inventory Track</CardTitle>
-            <CardDescription>
-              Get started by adding your first inventory items
-            </CardDescription>
+            <CardTitle>Welcome to TEd_trackIT</CardTitle>
+            <CardDescription>Get started by adding your first inventory items</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p>Your inventory is currently empty. Start by adding some items to track.</p>
@@ -131,142 +144,300 @@ export default function DashboardPage() {
               <TabsTrigger value="project">By Project</TabsTrigger>
               <TabsTrigger value="location">By Location</TabsTrigger>
             </TabsList>
-            
-            <TabsContent value="project">
+
+            <TabsContent value="project" className="mt-4">
               <Card>
                 <CardHeader>
                   <CardTitle>Items by Project</CardTitle>
-                  <CardDescription>
-                    Distribution of inventory items across projects
-                  </CardDescription>
+                  <CardDescription>Distribution of inventory items across projects</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[400px] flex flex-col md:flex-row">
-                    <div className="w-full md:w-2/3 h-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={projectData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={renderCustomizedLabel}
-                            outerRadius={120}
-                            fill="#8884d8"
-                            dataKey="value"
-                            nameKey="name"
-                            onClick={handleItemClick}
-                            isAnimationActive={true}
-                          >
-                            {projectData.map((entry, index) => (
-                              <Cell 
-                                key={`cell-${index}`} 
-                                fill={COLORS[index % COLORS.length]} 
-                                style={{ cursor: 'pointer' }}
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            formatter={(value) => [`${value} items`, 'Count']}
-                            labelFormatter={(name) => `Project: ${name}`}
-                          />
-                          <Legend 
-                            layout="vertical" 
-                            verticalAlign="middle" 
-                            align="right"
-                            onClick={handleItemClick}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                  <div className="flex gap-12">
+                    <div className="w-[300px] h-[300px] relative">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <svg viewBox="0 0 100 100" className="w-full h-full">
+                          {activeStats.map((stat, index) => {
+                            const startAngle = activeStats
+                              .slice(0, index)
+                              .reduce((sum, s) => sum + (Number(s.value) / items.length) * 360, 0);
+                            const endAngle = startAngle + (stat.value / items.length) * 360;
+                            const x1 = 50 + 40 * Math.cos((startAngle - 90) * Math.PI / 180);
+                            const y1 = 50 + 40 * Math.sin((startAngle - 90) * Math.PI / 180);
+                            const x2 = 50 + 40 * Math.cos((endAngle - 90) * Math.PI / 180);
+                            const y2 = 50 + 40 * Math.sin((endAngle - 90) * Math.PI / 180);
+                            const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+
+                            // Calculate position for the text
+                            const midAngle = (startAngle + endAngle) / 2;
+                            const textX = 50 + 30 * Math.cos((midAngle - 90) * Math.PI / 180);
+                            const textY = 50 + 30 * Math.sin((midAngle - 90) * Math.PI / 180);
+
+                            return (
+                              <g key={stat.name}>
+                                <title>{getTooltipContent(stat)}</title>
+                                <path
+                                  d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                                  fill={colors[index % colors.length]}
+                                  className="cursor-pointer hover:opacity-90 transition-opacity"
+                                  onMouseEnter={() => setActiveSegment(stat.name)}
+                                  onMouseLeave={() => setActiveSegment(null)}
+                                  onClick={() => navigate(`/inventory?${activeView}=${encodeURIComponent(stat.name)}`)}
+                                  opacity="0"
+                                >
+                                  <animate
+                                    attributeName="opacity"
+                                    from="0"
+                                    to="1"
+                                    dur="0.3s"
+                                    begin={`${index * 0.1}s`}
+                                    fill="freeze"
+                                    calcMode="spline"
+                                    keySplines="0.4 0 0.2 1"
+                                  />
+                                </path>
+                                <text
+                                  x={textX}
+                                  y={textY}
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                  fill="white"
+                                  fontSize="4"
+                                  className="select-none pointer-events-none font-medium"
+                                  opacity="0"
+                                >
+                                  {stat.value}
+                                  <animate
+                                    attributeName="opacity"
+                                    from="0"
+                                    to="1"
+                                    dur="0.3s"
+                                    begin={`${index * 0.1 + 0.15}s`}
+                                    fill="freeze"
+                                    calcMode="spline"
+                                    keySplines="0.4 0 0.2 1"
+                                  />
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      </div>
                     </div>
-                    <div className="w-full md:w-1/3 h-full overflow-auto mt-4 md:mt-0">
-                      <h3 className="text-sm font-medium mb-2">Project Details</h3>
-                      <div className="space-y-2">
-                        {projectData.map((project, index) => (
-                          <div 
-                            key={project.name}
-                            className="flex items-center p-2 rounded-md hover:bg-muted cursor-pointer"
-                            onClick={() => handleItemClick(project)}
-                          >
-                            <div 
-                              className="w-3 h-3 rounded-full mr-2" 
-                              style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                            />
-                            <div className="flex-1 truncate">{project.name}</div>
-                            <div className="text-sm text-muted-foreground">{project.value} items</div>
-                          </div>
-                        ))}
+
+                    <div className="flex-1">
+                      <div className="flex gap-16">
+                        <div className="flex-1">
+                          {activeStats.slice(0, Math.ceil(activeStats.length / 2)).map((stat, index) => (
+                            <div
+                              key={stat.name}
+                              className={`flex items-center gap-3 mb-4 cursor-pointer ${
+                                activeSegment === stat.name ? 'opacity-100' : 'opacity-80'
+                              }`}
+                              onClick={() => navigate(`/inventory?${activeView}=${encodeURIComponent(stat.name)}`)}
+                              onMouseEnter={() => setActiveSegment(stat.name)}
+                              onMouseLeave={() => setActiveSegment(null)}
+                            >
+                              <div
+                                className="w-4 h-4 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: colors[index % colors.length] }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span 
+                                    className="font-medium truncate"
+                                    style={{ color: colors[index % colors.length] }}
+                                  >
+                                    {stat.name}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                    {stat.value} items
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex-1">
+                          {activeStats.slice(Math.ceil(activeStats.length / 2)).map((stat, index) => (
+                            <div
+                              key={stat.name}
+                              className={`flex items-center gap-3 mb-4 cursor-pointer ${
+                                activeSegment === stat.name ? 'opacity-100' : 'opacity-80'
+                              }`}
+                              onClick={() => navigate(`/inventory?${activeView}=${encodeURIComponent(stat.name)}`)}
+                              onMouseEnter={() => setActiveSegment(stat.name)}
+                              onMouseLeave={() => setActiveSegment(null)}
+                            >
+                              <div
+                                className="w-4 h-4 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: colors[(index + Math.ceil(activeStats.length / 2)) % colors.length] }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span 
+                                    className="font-medium truncate"
+                                    style={{ color: colors[(index + Math.ceil(activeStats.length / 2)) % colors.length] }}
+                                  >
+                                    {stat.name}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                    {stat.value} items
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
-            
-            <TabsContent value="location">
+
+            <TabsContent value="location" className="mt-4">
               <Card>
                 <CardHeader>
                   <CardTitle>Items by Location</CardTitle>
-                  <CardDescription>
-                    Distribution of inventory items across locations
-                  </CardDescription>
+                  <CardDescription>Distribution of inventory items across locations</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[400px] flex flex-col md:flex-row">
-                    <div className="w-full md:w-2/3 h-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={locationData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={renderCustomizedLabel}
-                            outerRadius={120}
-                            fill="#8884d8"
-                            dataKey="value"
-                            nameKey="name"
-                            onClick={handleItemClick}
-                            isAnimationActive={true}
-                          >
-                            {locationData.map((entry, index) => (
-                              <Cell 
-                                key={`cell-${index}`} 
-                                fill={COLORS[index % COLORS.length]} 
-                                style={{ cursor: 'pointer' }}
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            formatter={(value) => [`${value} items`, 'Count']}
-                            labelFormatter={(name) => `Location: ${name}`}
-                          />
-                          <Legend 
-                            layout="vertical" 
-                            verticalAlign="middle" 
-                            align="right"
-                            onClick={handleItemClick}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                  <div className="flex gap-12">
+                    <div className="w-[300px] h-[300px] relative">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <svg viewBox="0 0 100 100" className="w-full h-full">
+                          {activeStats.map((stat, index) => {
+                            const startAngle = activeStats
+                              .slice(0, index)
+                              .reduce((sum, s) => sum + (Number(s.value) / items.length) * 360, 0);
+                            const endAngle = startAngle + (stat.value / items.length) * 360;
+                            const x1 = 50 + 40 * Math.cos((startAngle - 90) * Math.PI / 180);
+                            const y1 = 50 + 40 * Math.sin((startAngle - 90) * Math.PI / 180);
+                            const x2 = 50 + 40 * Math.cos((endAngle - 90) * Math.PI / 180);
+                            const y2 = 50 + 40 * Math.sin((endAngle - 90) * Math.PI / 180);
+                            const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+
+                            // Calculate position for the text
+                            const midAngle = (startAngle + endAngle) / 2;
+                            const textX = 50 + 30 * Math.cos((midAngle - 90) * Math.PI / 180);
+                            const textY = 50 + 30 * Math.sin((midAngle - 90) * Math.PI / 180);
+
+                            return (
+                              <g key={stat.name}>
+                                <title>{getTooltipContent(stat)}</title>
+                                <path
+                                  d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                                  fill={colors[index % colors.length]}
+                                  className="cursor-pointer hover:opacity-90 transition-opacity"
+                                  onMouseEnter={() => setActiveSegment(stat.name)}
+                                  onMouseLeave={() => setActiveSegment(null)}
+                                  onClick={() => navigate(`/inventory?${activeView}=${encodeURIComponent(stat.name)}`)}
+                                  opacity="0"
+                                >
+                                  <animate
+                                    attributeName="opacity"
+                                    from="0"
+                                    to="1"
+                                    dur="0.3s"
+                                    begin={`${index * 0.1}s`}
+                                    fill="freeze"
+                                    calcMode="spline"
+                                    keySplines="0.4 0 0.2 1"
+                                  />
+                                </path>
+                                <text
+                                  x={textX}
+                                  y={textY}
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                  fill="white"
+                                  fontSize="4"
+                                  className="select-none pointer-events-none font-medium"
+                                  opacity="0"
+                                >
+                                  {stat.value}
+                                  <animate
+                                    attributeName="opacity"
+                                    from="0"
+                                    to="1"
+                                    dur="0.3s"
+                                    begin={`${index * 0.1 + 0.15}s`}
+                                    fill="freeze"
+                                    calcMode="spline"
+                                    keySplines="0.4 0 0.2 1"
+                                  />
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      </div>
                     </div>
-                    <div className="w-full md:w-1/3 h-full overflow-auto mt-4 md:mt-0">
-                      <h3 className="text-sm font-medium mb-2">Location Details</h3>
-                      <div className="space-y-2">
-                        {locationData.map((location, index) => (
-                          <div 
-                            key={location.name}
-                            className="flex items-center p-2 rounded-md hover:bg-muted cursor-pointer"
-                            onClick={() => handleItemClick(location)}
-                          >
-                            <div 
-                              className="w-3 h-3 rounded-full mr-2" 
-                              style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                            />
-                            <div className="flex-1 truncate">{location.name}</div>
-                            <div className="text-sm text-muted-foreground">{location.value} items</div>
-                          </div>
-                        ))}
+
+                    <div className="flex-1">
+                      <div className="flex gap-16">
+                        <div className="flex-1">
+                          {activeStats.slice(0, Math.ceil(activeStats.length / 2)).map((stat, index) => (
+                            <div
+                              key={stat.name}
+                              className={`flex items-center gap-3 mb-4 cursor-pointer ${
+                                activeSegment === stat.name ? 'opacity-100' : 'opacity-80'
+                              }`}
+                              onClick={() => navigate(`/inventory?${activeView}=${encodeURIComponent(stat.name)}`)}
+                              onMouseEnter={() => setActiveSegment(stat.name)}
+                              onMouseLeave={() => setActiveSegment(null)}
+                            >
+                              <div
+                                className="w-4 h-4 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: colors[index % colors.length] }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span 
+                                    className="font-medium truncate"
+                                    style={{ color: colors[index % colors.length] }}
+                                  >
+                                    {stat.name}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                    {stat.value} items
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex-1">
+                          {activeStats.slice(Math.ceil(activeStats.length / 2)).map((stat, index) => (
+                            <div
+                              key={stat.name}
+                              className={`flex items-center gap-3 mb-4 cursor-pointer ${
+                                activeSegment === stat.name ? 'opacity-100' : 'opacity-80'
+                              }`}
+                              onClick={() => navigate(`/inventory?${activeView}=${encodeURIComponent(stat.name)}`)}
+                              onMouseEnter={() => setActiveSegment(stat.name)}
+                              onMouseLeave={() => setActiveSegment(null)}
+                            >
+                              <div
+                                className="w-4 h-4 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: colors[(index + Math.ceil(activeStats.length / 2)) % colors.length] }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span 
+                                    className="font-medium truncate"
+                                    style={{ color: colors[(index + Math.ceil(activeStats.length / 2)) % colors.length] }}
+                                  >
+                                    {stat.name}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                    {stat.value} items
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -275,48 +446,34 @@ export default function DashboardPage() {
             </TabsContent>
           </Tabs>
 
-          <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Filters</CardTitle>
-                <CardDescription>
-                  Jump to filtered inventory views
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => navigate('/inventory')}
-                    className="flex items-center"
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Filters</CardTitle>
+              <CardDescription>Jump to filtered inventory views</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" className="flex items-center gap-2" onClick={() => navigate('/inventory')}>
+                  <Filter className="h-4 w-4" />
+                  All Items
+                </Button>
+                {activeStats.slice(0, 5).map((stat, index) => (
+                  <Button
+                    key={stat.name}
+                    variant="outline"
+                    className="flex items-center gap-2 relative pl-6"
+                    onClick={() => navigate(`/inventory?${activeView}=${encodeURIComponent(stat.name)}`)}
                   >
-                    <Filter className="mr-2 h-4 w-4" />
-                    All Items
+                    <div 
+                      className="absolute left-0 top-0 bottom-0 w-2 rounded-l-md"
+                      style={{ backgroundColor: colors[index % colors.length] }}
+                    />
+                    {stat.name}
                   </Button>
-                  
-                  {activeView === 'project' && projectData.slice(0, 5).map(project => (
-                    <Button 
-                      key={project.name}
-                      variant="outline" 
-                      onClick={() => navigate(`/inventory?project=${encodeURIComponent(project.name)}`)}
-                    >
-                      {project.name}
-                    </Button>
-                  ))}
-                  
-                  {activeView === 'location' && locationData.slice(0, 5).map(location => (
-                    <Button 
-                      key={location.name}
-                      variant="outline" 
-                      onClick={() => navigate(`/inventory?location=${encodeURIComponent(location.name)}`)}
-                    >
-                      {location.name}
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

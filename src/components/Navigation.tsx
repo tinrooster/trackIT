@@ -1,18 +1,19 @@
-import React from 'react'
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, List, FileText, Settings } from 'lucide-react'
+import { LayoutDashboard, List, FileText, Settings, Copy } from 'lucide-react'
 import { cn } from "@/lib/utils"
 import { UserMenu } from '@/components/UserMenu'
 import { useAuth } from '@/contexts/AuthContext'
 
 export function Navigation() {
   const location = useLocation()
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
-  const { isAuthenticated } = useAuth()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { user } = useAuth()
 
   const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { path: "/", label: "Dashboard", icon: LayoutDashboard },
     { path: "/inventory", label: "Inventory", icon: List },
+    { path: "/templates", label: "Templates", icon: Copy },
     { path: "/reports", label: "Reports", icon: FileText },
     { path: "/settings", label: "Settings", icon: Settings }
   ]
@@ -22,17 +23,17 @@ export function Navigation() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo/Title */}
-          <h2 className="text-lg font-bold">TEd_Inventory Track</h2> 
+          <h2 className="text-lg font-bold">TEd_trackIT</h2> 
           
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-2">
-            {isAuthenticated && navItems.map(item => (
+            {user && navItems.map(item => (
               <Link
                 key={item.path}
                 to={item.path}
                 className={cn(
                   "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  location.pathname.startsWith(item.path)
+                  location.pathname === item.path
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 )}
@@ -43,7 +44,7 @@ export function Navigation() {
             ))}
             
             {/* User Menu */}
-            {isAuthenticated && <UserMenu />}
+            {user && <UserMenu />}
           </div>
 
           {/* Mobile menu button */}
@@ -60,13 +61,13 @@ export function Navigation() {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden pb-3 space-y-1">
-            {isAuthenticated && navItems.map(item => (
+            {user && navItems.map(item => (
               <Link
                 key={item.path}
                 to={item.path}
                 className={cn(
                   "block px-3 py-2 rounded-md text-base font-medium",
-                  location.pathname.startsWith(item.path)
+                  location.pathname === item.path
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 )}
@@ -80,7 +81,7 @@ export function Navigation() {
             ))}
             
             {/* Mobile User Menu */}
-            {isAuthenticated && (
+            {user && (
               <div className="px-3 py-2">
                 <UserMenu />
               </div>

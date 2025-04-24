@@ -17,7 +17,7 @@ export function LoginPage() {
       <div className="w-full max-w-md p-4">
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">TEd_Inventory Track</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">TEd_trackIT</CardTitle>
             <CardDescription className="text-center">
               Enter your credentials to access your inventory
             </CardDescription>

@@ -29,6 +29,8 @@ import { toast } from "sonner";
 import { Plus, Trash2, Save, FileUp, FileDown } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { v4 as uuidv4 } from "uuid";
+import { STORAGE_KEYS, getSettings, saveSettings } from "@/lib/storageService";
+import { UsersTab } from "@/components/UsersTab";
 
 // Schema for the settings form
 const settingsFormSchema = z.object({
@@ -41,7 +43,8 @@ const settingsFormSchema = z.object({
 type SettingsFormValues = z.infer<typeof settingsFormSchema>;
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState("lists");
+  const [activeSubTab, setActiveSubTab] = useState("categories");
   
   // Settings lists
   const [categories, setCategories] = useState<string[]>([]);
@@ -49,6 +52,7 @@ export default function SettingsPage() {
   const [locations, setLocations] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
+  const [users, setUsers] = useState<string[]>([]);
   
   // New item inputs
   const [newCategory, setNewCategory] = useState("");
@@ -56,6 +60,7 @@ export default function SettingsPage() {
   const [newLocation, setNewLocation] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
   const [newProject, setNewProject] = useState("");
+  const [newUser, setNewUser] = useState("");
   
   // General settings form
   const form = useForm<SettingsFormValues>({
@@ -73,20 +78,15 @@ export default function SettingsPage() {
     const loadSettings = () => {
       try {
         // Load lists
-        const savedCategories = localStorage.getItem("inventory-categories");
-        const savedUnits = localStorage.getItem("inventory-units");
-        const savedLocations = localStorage.getItem("inventory-locations");
-        const savedSuppliers = localStorage.getItem("inventory-suppliers");
-        const savedProjects = localStorage.getItem("inventory-projects");
-        
-        setCategories(savedCategories ? JSON.parse(savedCategories) : []);
-        setUnits(savedUnits ? JSON.parse(savedUnits) : []);
-        setLocations(savedLocations ? JSON.parse(savedLocations) : []);
-        setSuppliers(savedSuppliers ? JSON.parse(savedSuppliers) : []);
-        setProjects(savedProjects ? JSON.parse(savedProjects) : []);
+        setCategories(getSettings('CATEGORIES'));
+        setUnits(getSettings('UNITS'));
+        setLocations(getSettings('LOCATIONS'));
+        setSuppliers(getSettings('SUPPLIERS'));
+        setProjects(getSettings('PROJECTS'));
+        setUsers(getSettings('USERS'));
         
         // Load general settings
-        const savedGeneralSettings = localStorage.getItem("inventory-general-settings");
+        const savedGeneralSettings = localStorage.getItem(STORAGE_KEYS.GENERAL_SETTINGS);
         if (savedGeneralSettings) {
           const parsedSettings = JSON.parse(savedGeneralSettings);
           form.reset(parsedSettings);
@@ -103,7 +103,7 @@ export default function SettingsPage() {
   // Save general settings
   const onSubmit = (values: SettingsFormValues) => {
     try {
-      localStorage.setItem("inventory-general-settings", JSON.stringify(values));
+      localStorage.setItem(STORAGE_KEYS.GENERAL_SETTINGS, JSON.stringify(values));
       toast.success("Settings saved successfully");
     } catch (error) {
       console.error("Error saving settings:", error);
@@ -112,7 +112,7 @@ export default function SettingsPage() {
   };
 
   // Add new item to a list
-  const addItem = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, newItem: string, storageKey: string, setNewItem: React.Dispatch<React.SetStateAction<string>>) => {
+  const addItem = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, newItem: string, key: keyof typeof STORAGE_KEYS, setNewItem: React.Dispatch<React.SetStateAction<string>>) => {
     if (!newItem.trim()) {
       toast.warning("Please enter a name");
       return;
@@ -125,16 +125,16 @@ export default function SettingsPage() {
     
     const updatedList = [...list, newItem.trim()].sort();
     setList(updatedList);
-    localStorage.setItem(storageKey, JSON.stringify(updatedList));
+    saveSettings(key, updatedList);
     setNewItem("");
     toast.success(`Added "${newItem}"`);
   };
 
   // Remove item from a list
-  const removeItem = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, item: string, storageKey: string) => {
+  const removeItem = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, item: string, key: keyof typeof STORAGE_KEYS) => {
     const updatedList = list.filter(i => i !== item);
     setList(updatedList);
-    localStorage.setItem(storageKey, JSON.stringify(updatedList));
+    saveSettings(key, updatedList);
     toast.success(`Removed "${item}"`);
   };
 
@@ -249,7 +249,7 @@ export default function SettingsPage() {
             const categoriesData = XLSX.utils.sheet_to_json(categoriesSheet);
             const categories = categoriesData.map((item: any) => item.category).filter(Boolean);
             setCategories(categories);
-            localStorage.setItem("inventory-categories", JSON.stringify(categories));
+            saveSettings('CATEGORIES', categories);
           }
           
           if (workbook.SheetNames.includes("Units")) {
@@ -257,7 +257,7 @@ export default function SettingsPage() {
             const unitsData = XLSX.utils.sheet_to_json(unitsSheet);
             const units = unitsData.map((item: any) => item.unit).filter(Boolean);
             setUnits(units);
-            localStorage.setItem("inventory-units", JSON.stringify(units));
+            saveSettings('UNITS', units);
           }
           
           if (workbook.SheetNames.includes("Locations")) {
@@ -265,7 +265,7 @@ export default function SettingsPage() {
             const locationsData = XLSX.utils.sheet_to_json(locationsSheet);
             const locations = locationsData.map((item: any) => item.location).filter(Boolean);
             setLocations(locations);
-            localStorage.setItem("inventory-locations", JSON.stringify(locations));
+            saveSettings('LOCATIONS', locations);
           }
           
           if (workbook.SheetNames.includes("Suppliers")) {
@@ -273,7 +273,7 @@ export default function SettingsPage() {
             const suppliersData = XLSX.utils.sheet_to_json(suppliersSheet);
             const suppliers = suppliersData.map((item: any) => item.supplier).filter(Boolean);
             setSuppliers(suppliers);
-            localStorage.setItem("inventory-suppliers", JSON.stringify(suppliers));
+            saveSettings('SUPPLIERS', suppliers);
           }
           
           if (workbook.SheetNames.includes("Projects")) {
@@ -281,7 +281,7 @@ export default function SettingsPage() {
             const projectsData = XLSX.utils.sheet_to_json(projectsSheet);
             const projects = projectsData.map((item: any) => item.project).filter(Boolean);
             setProjects(projects);
-            localStorage.setItem("inventory-projects", JSON.stringify(projects));
+            saveSettings('PROJECTS', projects);
           }
           
           toast.success("Data imported successfully");
@@ -307,459 +307,339 @@ export default function SettingsPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
-      
-      <Tabs defaultValue="general" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="units">Units</TabsTrigger>
-          <TabsTrigger value="locations">Locations</TabsTrigger>
-          <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
-          <TabsTrigger value="projects">Projects</TabsTrigger>
-          <TabsTrigger value="data">Data Management</TabsTrigger>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Settings</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportAllData}>
+            <FileDown className="mr-2 h-4 w-4" />
+            Export Config
+          </Button>
+          <Button variant="outline">
+            <FileUp className="mr-2 h-4 w-4" />
+            Import Config
+          </Button>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <div className="flex items-center gap-2 p-4 border rounded-lg bg-muted/50">
+          <span className="text-muted-foreground">Important:</span>
+          <p className="text-sm text-muted-foreground">
+            Changes to categories, units, and other settings may affect existing inventory items. When removing a value that's in use, you'll be prompted to either remove it from items or replace it.
+          </p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="lists" value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="lists">List Management</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="general">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>
-                Configure default values for new inventory items
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="defaultCategory"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Default Category</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Electronics" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          This category will be pre-selected when adding new items
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+
+        <TabsContent value="lists" className="space-y-4">
+          <Tabs defaultValue={activeSubTab} value={activeSubTab} onValueChange={setActiveSubTab}>
+            <TabsList>
+              <TabsTrigger value="categories">Categories</TabsTrigger>
+              <TabsTrigger value="units">Units</TabsTrigger>
+              <TabsTrigger value="locations">Locations</TabsTrigger>
+              <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+              <TabsTrigger value="projects">Projects</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="categories">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Categories</CardTitle>
+                  <CardDescription>
+                    Manage categories for organizing inventory items
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex space-x-2 mb-4">
+                    <Input
+                      placeholder="New category name"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addItem(categories, setCategories, newCategory, 'CATEGORIES', setNewCategory)}
+                    />
+                    <Button onClick={() => addItem(categories, setCategories, newCategory, 'CATEGORIES', setNewCategory)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
                   
-                  <FormField
-                    control={form.control}
-                    name="defaultUnit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Default Unit</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., pcs" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          This unit will be pre-selected when adding new items
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Category Name</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {categories.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center">
+                            No categories defined yet
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        categories.map((category) => (
+                          <TableRow key={category}>
+                            <TableCell>{category}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(categories, setCategories, category, 'CATEGORIES')}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="units">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Units</CardTitle>
+                  <CardDescription>
+                    Manage units of measurement for inventory items
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex space-x-2 mb-4">
+                    <Input
+                      placeholder="New unit name"
+                      value={newUnit}
+                      onChange={(e) => setNewUnit(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addItem(units, setUnits, newUnit, 'UNITS', setNewUnit)}
+                    />
+                    <Button onClick={() => addItem(units, setUnits, newUnit, 'UNITS', setNewUnit)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
                   
-                  <FormField
-                    control={form.control}
-                    name="defaultLocation"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Default Location</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Warehouse A" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          This location will be pre-selected when adding new items
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Unit Name</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {units.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center">
+                            No units defined yet
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        units.map((unit) => (
+                          <TableRow key={unit}>
+                            <TableCell>{unit}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(units, setUnits, unit, 'UNITS')}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="locations">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Locations</CardTitle>
+                  <CardDescription>
+                    Manage storage locations for inventory items
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex space-x-2 mb-4">
+                    <Input
+                      placeholder="New location name"
+                      value={newLocation}
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addItem(locations, setLocations, newLocation, 'LOCATIONS', setNewLocation)}
+                    />
+                    <Button onClick={() => addItem(locations, setLocations, newLocation, 'LOCATIONS', setNewLocation)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
                   
-                  <FormField
-                    control={form.control}
-                    name="defaultSupplier"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Default Supplier</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Acme Inc." {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          This supplier will be pre-selected when adding new items
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Location Name</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {locations.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center">
+                            No locations defined yet
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        locations.map((location) => (
+                          <TableRow key={location}>
+                            <TableCell>{location}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(locations, setLocations, location, 'LOCATIONS')}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="suppliers">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Suppliers</CardTitle>
+                  <CardDescription>
+                    Manage suppliers for inventory items
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex space-x-2 mb-4">
+                    <Input
+                      placeholder="New supplier name"
+                      value={newSupplier}
+                      onChange={(e) => setNewSupplier(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addItem(suppliers, setSuppliers, newSupplier, 'SUPPLIERS', setNewSupplier)}
+                    />
+                    <Button onClick={() => addItem(suppliers, setSuppliers, newSupplier, 'SUPPLIERS', setNewSupplier)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
                   
-                  <Button type="submit">
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Settings
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="categories">
-          <Card>
-            <CardHeader>
-              <CardTitle>Categories</CardTitle>
-              <CardDescription>
-                Manage categories for organizing inventory items
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex space-x-2 mb-4">
-                <Input
-                  placeholder="New category name"
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addItem(categories, setCategories, newCategory, "inventory-categories", setNewCategory)}
-                />
-                <Button onClick={() => addItem(categories, setCategories, newCategory, "inventory-categories", setNewCategory)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add
-                </Button>
-              </div>
-              
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Category Name</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {categories.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center">
-                        No categories defined yet
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    categories.map((category) => (
-                      <TableRow key={category}>
-                        <TableCell>{category}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeItem(categories, setCategories, category, "inventory-categories")}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Supplier Name</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="units">
-          <Card>
-            <CardHeader>
-              <CardTitle>Units</CardTitle>
-              <CardDescription>
-                Manage units of measurement for inventory items
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex space-x-2 mb-4">
-                <Input
-                  placeholder="New unit name"
-                  value={newUnit}
-                  onChange={(e) => setNewUnit(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addItem(units, setUnits, newUnit, "inventory-units", setNewUnit)}
-                />
-                <Button onClick={() => addItem(units, setUnits, newUnit, "inventory-units", setNewUnit)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add
-                </Button>
-              </div>
-              
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Unit Name</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {units.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center">
-                        No units defined yet
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    units.map((unit) => (
-                      <TableRow key={unit}>
-                        <TableCell>{unit}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeItem(units, setUnits, unit, "inventory-units")}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
+                    </TableHeader>
+                    <TableBody>
+                      {suppliers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center">
+                            No suppliers defined yet
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        suppliers.map((supplier) => (
+                          <TableRow key={supplier}>
+                            <TableCell>{supplier}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(suppliers, setSuppliers, supplier, 'SUPPLIERS')}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="projects">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Projects</CardTitle>
+                  <CardDescription>
+                    Manage projects for inventory items
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex space-x-2 mb-4">
+                    <Input
+                      placeholder="New project name"
+                      value={newProject}
+                      onChange={(e) => setNewProject(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addItem(projects, setProjects, newProject, 'PROJECTS', setNewProject)}
+                    />
+                    <Button onClick={() => addItem(projects, setProjects, newProject, 'PROJECTS', setNewProject)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
+                  
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Project Name</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {projects.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center">
+                            No projects defined yet
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        projects.map((project) => (
+                          <TableRow key={project}>
+                            <TableCell>{project}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(projects, setProjects, project, 'PROJECTS')}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
-        
-        <TabsContent value="locations">
-          <Card>
-            <CardHeader>
-              <CardTitle>Locations</CardTitle>
-              <CardDescription>
-                Manage storage locations for inventory items
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex space-x-2 mb-4">
-                <Input
-                  placeholder="New location name"
-                  value={newLocation}
-                  onChange={(e) => setNewLocation(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addItem(locations, setLocations, newLocation, "inventory-locations", setNewLocation)}
-                />
-                <Button onClick={() => addItem(locations, setLocations, newLocation, "inventory-locations", setNewLocation)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add
-                </Button>
-              </div>
-              
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Location Name</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {locations.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center">
-                        No locations defined yet
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    locations.map((location) => (
-                      <TableRow key={location}>
-                        <TableCell>{location}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeItem(locations, setLocations, location, "inventory-locations")}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="suppliers">
-          <Card>
-            <CardHeader>
-              <CardTitle>Suppliers</CardTitle>
-              <CardDescription>
-                Manage suppliers for inventory items
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex space-x-2 mb-4">
-                <Input
-                  placeholder="New supplier name"
-                  value={newSupplier}
-                  onChange={(e) => setNewSupplier(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addItem(suppliers, setSuppliers, newSupplier, "inventory-suppliers", setNewSupplier)}
-                />
-                <Button onClick={() => addItem(suppliers, setSuppliers, newSupplier, "inventory-suppliers", setNewSupplier)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add
-                </Button>
-              </div>
-              
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Supplier Name</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {suppliers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center">
-                        No suppliers defined yet
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    suppliers.map((supplier) => (
-                      <TableRow key={supplier}>
-                        <TableCell>{supplier}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeItem(suppliers, setSuppliers, supplier, "inventory-suppliers")}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="projects">
-          <Card>
-            <CardHeader>
-              <CardTitle>Projects</CardTitle>
-              <CardDescription>
-                Manage projects for inventory items
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex space-x-2 mb-4">
-                <Input
-                  placeholder="New project name"
-                  value={newProject}
-                  onChange={(e) => setNewProject(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addItem(projects, setProjects, newProject, "inventory-projects", setNewProject)}
-                />
-                <Button onClick={() => addItem(projects, setProjects, newProject, "inventory-projects", setNewProject)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add
-                </Button>
-              </div>
-              
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Project Name</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {projects.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center">
-                        No projects defined yet
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    projects.map((project) => (
-                      <TableRow key={project}>
-                        <TableCell>{project}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeItem(projects, setProjects, project, "inventory-projects")}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="data">
-          <Card>
-            <CardHeader>
-              <CardTitle>Data Management</CardTitle>
-              <CardDescription>
-                Export and import inventory data
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium mb-2">Export Data</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Export all inventory data, history, and settings to an Excel file for backup or transfer.
-                </p>
-                <Button onClick={handleExportAllData}>
-                  <FileDown className="mr-2 h-4 w-4" />
-                  Export All Data
-                </Button>
-              </div>
-              
-              <div className="pt-4 border-t">
-                <h3 className="text-lg font-medium mb-2">Import Data</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Import inventory data, history, and settings from a previously exported Excel file.
-                  <br />
-                  <span className="text-destructive">Warning: This will overwrite your current data.</span>
-                </p>
-                <div className="flex items-center space-x-2">
-                  <Input
-                    type="file"
-                    accept=".xlsx"
-                    onChange={handleImportData}
-                    className="max-w-sm"
-                  />
-                  <Button variant="outline">
-                    <FileUp className="mr-2 h-4 w-4" />
-                    Import
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="pt-4 border-t">
-                <h3 className="text-lg font-medium mb-2">Reset Data</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Clear all inventory data and settings. This action cannot be undone.
-                </p>
-                <Button 
-                  variant="destructive"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to reset all data? This action cannot be undone.")) {
-                      localStorage.clear();
-                      window.location.reload();
-                    }
-                  }}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Reset All Data
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+
+        <TabsContent value="users">
+          <UsersTab />
         </TabsContent>
       </Tabs>
     </div>

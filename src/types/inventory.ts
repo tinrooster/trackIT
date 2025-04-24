@@ -5,8 +5,10 @@ export interface InventoryItem {
   name: string;
   description?: string;
   quantity: number;
+  minQuantity?: number;
   unit: string;
   costPerUnit?: number;
+  price?: number;
   category?: string;
   location?: string;
   reorderLevel?: number;
@@ -21,6 +23,7 @@ export interface InventoryItem {
   lastUpdated: Date;
   createdBy?: string; // User ID who created the item
   lastModifiedBy?: string; // User ID who last modified the item
+  status?: 'in_stock' | 'pending' | 'backorder' | 'discontinued';
 }
 
 export interface InventoryHistoryEntry {
@@ -33,4 +36,8 @@ export interface InventoryHistoryEntry {
   timestamp: Date;
   userId?: string; // User ID who made the change
   userName?: string; // Username who made the change
+}
+
+export interface Template extends Omit<InventoryItem, 'id' | 'lastUpdated'> {
+  templateName: string;
 }

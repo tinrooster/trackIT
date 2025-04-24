@@ -1,25 +1,33 @@
 "use client";
 
-import React, { useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Form, FormItem, FormMessage } from "@/components/ui/form"; // Using custom Form components
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { InventoryItem, OrderStatus } from "@/types/inventory";
+import { ItemTemplate } from "@/types/templates";
 import { toast } from "sonner";
-import { Loader2, Save, ScanLine, Keyboard, Camera } from "lucide-react"; // Added Keyboard and Camera icons
+import { Loader2, Save, ScanLine, Keyboard, Camera } from "lucide-react";
 import { OrderStatusSelector } from "@/components/OrderStatusSelector";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
-import { ManualBarcodeInput } from "@/components/ManualBarcodeInput"; // Import the new component
-import { Label } from "@/components/ui/label"; // Import Label directly
+import { ManualBarcodeInput } from "@/components/ManualBarcodeInput";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-// Helper function to prepend https:// if needed
-const ensureUrlProtocol = (url: string | undefined): string | undefined => {
-  if (!url || url.trim() === '') return undefined;
+// Add URL validation helper
+const ensureUrlProtocol = (url: string) => {
+  if (!url) return url;
   if (!/^https?:\/\//i.test(url)) {
     return `https://${url}`;
   }
@@ -27,39 +35,28 @@ const ensureUrlProtocol = (url: string | undefined): string | undefined => {
 };
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
-  quantity: z.coerce.number().min(0, { message: "Quantity cannot be negative." }).default(0),
-  unit: z.string().min(1, { message: "Unit is required." }),
-  costPerUnit: z.coerce.number().min(0, { message: "Cost must be non-negative" }).optional(),
   category: z.string().optional(),
+  quantity: z.number().min(0, "Quantity must be 0 or greater"),
+  unit: z.string().min(1, "Unit is required"),
+  costPerUnit: z.number().min(0, "Cost must be 0 or greater").optional(),
   location: z.string().optional(),
-  reorderLevel: z.coerce.number().min(0).optional(),
-  barcode: z.string().optional(),
-  notes: z.string().optional(),
   supplier: z.string().optional(),
-  supplierWebsite: z.string().optional(),
+  supplierWebsite: z.string().optional()
+    .transform(val => val ? ensureUrlProtocol(val) : val)
+    .refine(
+      val => !val || /^https?:\/\//i.test(val),
+      "Invalid URL format"
+    ),
   project: z.string().optional(),
-}).refine(data => {
-  if (data.supplierWebsite && data.supplierWebsite.trim() !== '') {
-    try {
-      const urlWithProtocol = ensureUrlProtocol(data.supplierWebsite);
-      if (urlWithProtocol) { new URL(urlWithProtocol); }
-      return true;
-    } catch (_) { return false; }
-  }
-  return true;
-}, { message: "Invalid URL format", path: ["supplierWebsite"] });
+  minQuantity: z.number().min(0, "Minimum quantity must be 0 or greater").optional(),
+  notes: z.string().optional(),
+  orderStatus: z.enum(['delivered', 'partially_delivered', 'backordered', 'on_order', 'not_ordered'] as const).default('not_ordered'),
+  deliveryPercentage: z.number().min(0).max(100).default(0)
+});
 
-export function AddItemForm({
-  onSubmit,
-  onCancel,
-  categories = [],
-  units = [],
-  locations = [],
-  suppliers = [],
-  projects = []
-}: {
+interface AddItemFormProps {
   onSubmit: (values: Omit<InventoryItem, "id" | "lastUpdated">) => void;
   onCancel: () => void;
   categories: string[];
@@ -67,68 +64,80 @@ export function AddItemForm({
   locations: string[];
   suppliers: string[];
   projects: string[];
-}) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState("details");
-  const [orderStatus, setOrderStatus] = useState<OrderStatus>('delivered');
-  const [deliveryPercentage, setDeliveryPercentage] = useState<number>(100);
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<Date | undefined>(undefined);
+  isSubmitting: boolean;
+  initialValues?: Partial<Omit<InventoryItem, "id" | "lastUpdated">>;
+  selectedTemplate?: ItemTemplate;
+}
+
+export function AddItemForm({
+  onSubmit,
+  onCancel,
+  categories,
+  units,
+  locations,
+  suppliers,
+  projects,
+  isSubmitting,
+  initialValues,
+  selectedTemplate
+}: AddItemFormProps) {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [isManualScanMode, setIsManualScanMode] = useState(false); // State for manual scan mode
+  const [isManualScanMode, setIsManualScanMode] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      description: "",
+      name: selectedTemplate?.name || "",
+      description: selectedTemplate?.description || "",
+      category: selectedTemplate?.category || "",
       quantity: 0,
-      unit: "",
-      costPerUnit: undefined,
-      category: "",
-      location: "",
-      reorderLevel: undefined,
-      barcode: "",
-      notes: "",
-      supplier: "",
-      supplierWebsite: "",
-      project: "",
+      minQuantity: selectedTemplate?.minQuantity || 0,
+      costPerUnit: selectedTemplate?.costPerUnit || 0,
+      unit: selectedTemplate?.unit || "",
+      location: selectedTemplate?.location || "",
+      supplier: selectedTemplate?.supplier || "",
+      supplierWebsite: selectedTemplate?.supplierWebsite || "",
+      project: selectedTemplate?.project || "",
+      notes: selectedTemplate?.notes || "",
+      orderStatus: selectedTemplate?.orderStatus || "not_ordered",
+      deliveryPercentage: selectedTemplate?.deliveryPercentage || 0
     },
   });
 
+  useEffect(() => {
+    if (selectedTemplate) {
+      form.reset({
+        name: selectedTemplate.name,
+        description: selectedTemplate.description,
+        category: selectedTemplate.category,
+        quantity: 0,
+        minQuantity: selectedTemplate.minQuantity,
+        costPerUnit: selectedTemplate.costPerUnit,
+        unit: selectedTemplate.unit,
+        location: selectedTemplate.location,
+        supplier: selectedTemplate.supplier,
+        supplierWebsite: selectedTemplate.supplierWebsite,
+        project: selectedTemplate.project,
+        notes: selectedTemplate.notes,
+        orderStatus: selectedTemplate.orderStatus,
+        deliveryPercentage: selectedTemplate.deliveryPercentage
+      });
+    }
+  }, [selectedTemplate, form]);
+
   const handleFormSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      setIsSubmitting(true);
-      const processedValues = {
-        ...values,
-        quantity: Number(values.quantity) || 0,
-        costPerUnit: values.costPerUnit === undefined || values.costPerUnit === null ? undefined : Number(values.costPerUnit),
-        reorderLevel: values.reorderLevel === undefined || values.reorderLevel === null ? undefined : Number(values.reorderLevel),
-        barcode: values.barcode?.trim() || undefined,
-        category: values.category?.trim() || undefined,
-        location: values.location?.trim() || undefined,
-        notes: values.notes?.trim() || undefined,
-        supplier: values.supplier?.trim() || undefined,
-        supplierWebsite: ensureUrlProtocol(values.supplierWebsite?.trim()),
-        project: values.project?.trim() || undefined,
-        unit: values.unit.trim(),
-        orderStatus,
-        deliveryPercentage,
-        expectedDeliveryDate,
-      };
-      
-      await onSubmit(processedValues);
+      await onSubmit(values);
+      form.reset(); // Reset form after successful submission
     } catch (error) {
       console.error("Form submission error:", error);
       toast.error("Failed to submit form");
-    } finally {
-      setIsSubmitting(false);
+      throw error; // Re-throw to be caught by the dialog's error handler
     }
   };
 
   const handleScanResult = (result: string) => {
-    form.setValue("barcode", result); // Update form field with scanned value
-    toast.success(`Barcode scanned: ${result}`);
-    // If manual mode was active, maybe switch back? Or keep it active? Let's keep it active for now.
+    toast.success(`Scanned: ${result}`);
   };
 
   const toggleManualScanMode = () => {
@@ -142,178 +151,284 @@ export function AddItemForm({
 
   return (
     <>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-2 mb-4">
-            <TabsTrigger value="details">Item Details</TabsTrigger>
-            <TabsTrigger value="order">Order Status</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="details" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Column 1 */}
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Item Name*</Label>
-                  <Input id="name" placeholder="e.g., BNC Connector" {...form.register("name")} />
-                  {form.formState.errors.name && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.name.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea id="description" placeholder="Brief description" className="resize-none" {...form.register("description")} />
-                </div>
-                <div>
-                  <Label htmlFor="quantity">Initial Quantity*</Label>
-                  <Input id="quantity" type="number" min="0" step="any" {...form.register("quantity")} />
-                  {form.formState.errors.quantity && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.quantity.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="unit">Unit*</Label>
-                  <select id="unit" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("unit")}>
-                    <option value="">Select unit...</option>
-                    {units.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-                    {!units.includes(form.getValues().unit) && form.getValues().unit && <option value={form.getValues().unit}>{form.getValues().unit}</option>}
-                  </select>
-                  {form.formState.errors.unit && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.unit.message}</p>}
-                </div>
-                 <div>
-                  <Label htmlFor="costPerUnit">Cost Per Unit ($)</Label>
-                  <Input id="costPerUnit" type="number" min="0" step="0.01" placeholder="e.g., 1.25" {...form.register("costPerUnit")} />
-                   {form.formState.errors.costPerUnit && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.costPerUnit.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="reorderLevel">Reorder Level</Label>
-                  <Input id="reorderLevel" type="number" min="0" placeholder="Min quantity" {...form.register("reorderLevel")} />
-                </div>
-              </div>
-              {/* Column 2 */}
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <select id="category" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("category")}>
-                    <option value="">Select category...</option>
-                    {categories.map(category => <option key={category} value={category}>{category}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="location">Location</Label>
-                  <select id="location" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("location")}>
-                    <option value="">Select location...</option>
-                    {locations.map(location => <option key={location} value={location}>{location}</option>)}
-                  </select>
-                </div>
-                
-                {/* Barcode Input Section */}
-                <div>
-                  <Label htmlFor="barcode">Barcode</Label>
-                  {isManualScanMode ? (
-                    <div className="space-y-2">
-                      <ManualBarcodeInput 
-                        onBarcodeDetected={handleScanResult}
-                        placeholder="Waiting for barcode scan..."
-                        isActive={isManualScanMode} // Ensure it's active when mode is on
-                      />
-                      <div className="flex justify-between items-center">
-                        <p className="text-xs text-muted-foreground">
-                          Bluetooth scanner mode active
-                        </p>
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={toggleManualScanMode}
-                          className="text-xs h-auto p-1"
-                        >
-                          <Camera className="h-3 w-3 mr-1"/> Use Camera / Manual
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex space-x-2">
-                      <Input 
-                        id="barcode" 
-                        placeholder="Optional barcode" 
-                        {...form.register("barcode")} 
-                        className="flex-1" 
-                      />
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={() => setIsScannerOpen(true)} 
-                        title="Scan Barcode with Camera"
-                      >
-                        <ScanLine className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={toggleManualScanMode} 
-                        title="Use Bluetooth Scanner"
-                      >
-                        <Keyboard className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                {/* End Barcode Input Section */}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Item name" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-                <div>
-                  <Label htmlFor="supplier">Supplier</Label>
-                  <select id="supplier" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("supplier")}>
-                    <option value="">Select supplier...</option>
-                    {suppliers.map(supplier => <option key={supplier} value={supplier}>{supplier}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="supplierWebsite">Supplier Website</Label>
-                  <Input id="supplierWebsite" placeholder="example.com or https://example.com" {...form.register("supplierWebsite")} />
-                  {form.formState.errors.supplierWebsite && <p className="text-sm font-medium text-destructive mt-1">{form.formState.errors.supplierWebsite.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="project">Project</Label>
-                  <select id="project" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...form.register("project")}>
-                    <option value="">Select project...</option>
-                    {projects.map(project => <option key={project} value={project}>{project}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" placeholder="Additional notes" className="resize-none" {...form.register("notes")} />
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="order" className="space-y-4">
-            <div className="border rounded-lg p-4 bg-muted/20">
-              <OrderStatusSelector
-                orderStatus={orderStatus}
-                deliveryPercentage={deliveryPercentage}
-                expectedDeliveryDate={expectedDeliveryDate}
-                onStatusChange={setOrderStatus}
-                onPercentageChange={setDeliveryPercentage}
-                onDateChange={setExpectedDeliveryDate}
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
-        
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Add Item
-          </Button>
-        </div>
-      </form>
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Textarea {...field} placeholder="Item description" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      {/* Barcode Scanner Dialog */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="unit"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Unit</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {units.map((unit) => (
+                          <SelectItem key={unit} value={unit}>
+                            {unit}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="quantity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Quantity</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      {...field}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="minQuantity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Minimum Quantity</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      {...field}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="costPerUnit"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cost Per Unit</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    {...field}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="location"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Location</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locations.map((location) => (
+                          <SelectItem key={location} value={location}>
+                            {location}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="project"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Project</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map((project) => (
+                          <SelectItem key={project} value={project}>
+                            {project}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="supplier"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Supplier</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select supplier" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suppliers.map((supplier) => (
+                          <SelectItem key={supplier} value={supplier}>
+                            {supplier}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="supplierWebsite"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Supplier Website</FormLabel>
+                  <FormControl>
+                    <Input 
+                      {...field} 
+                      placeholder="www.example.com"
+                      type="text"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Enter website without http:// - it will be added automatically
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Notes</FormLabel>
+                <FormControl>
+                  <Textarea {...field} placeholder="Additional notes" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Item
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </Form>
+
       <BarcodeScannerDialog
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onScanResult={handleScanResult}
+        open={isScannerOpen}
+        onOpenChange={setIsScannerOpen}
+        onScan={handleScanResult}
       />
     </>
   );
