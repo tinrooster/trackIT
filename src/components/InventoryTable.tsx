@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { InventoryItem } from "@/types/inventory";
 import { format } from "date-fns";
-import { Pencil, ArrowUpDown, FileDown, DollarSign, LayoutList, LayoutGrid, Box, Lock } from "lucide-react";
+import { Pencil, ArrowUpDown, FileDown, DollarSign, LayoutList, LayoutGrid, Box, Lock, BarChart2, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportToExcel } from "@/lib/exportUtils";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 
 type SortConfig = {
   key: keyof InventoryItem | 'totalValue' | 'cabinet';
@@ -118,8 +125,13 @@ export function InventoryTable({
     const location = locations.find(loc => loc.id === locationId);
     if (!location) {
       console.log('[DEBUG] Location not found for ID:', locationId);
-      // Try to parse the locationId as a potential name (for backward compatibility)
+      // Try to decode the locationId as a potential name (for backward compatibility)
+      try {
+        return decodeURIComponent(locationId);
+      } catch (e) {
+        console.error('[DEBUG] Error decoding location:', e);
       return locationId;
+      }
     }
     
     console.log('[DEBUG] Found location:', location);
@@ -390,6 +402,42 @@ export function InventoryTable({
                       break;
                     case 'location':
                       cellContent = getLocationName(item[column]);
+                      break;
+                    case 'name':
+                      cellContent = (
+                        <div className="flex items-center gap-2">
+                          <span>{item[column]?.toString() || '-'}</span>
+                          {item.reorderLevel !== undefined && item.quantity <= item.reorderLevel && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="destructive" className="flex items-center gap-1 px-2 py-0">
+                                    <BarChart2 className="h-3 w-3" />
+                                    <span className="text-xs">Low</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Quantity below reorder level ({item.reorderLevel})</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {item.notes && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="flex items-center gap-1 px-2 py-0">
+                                    <StickyNote className="h-3 w-3" />
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs whitespace-normal break-words">{item.notes}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      );
                       break;
                     default:
                       cellContent = item[column]?.toString() || '-';

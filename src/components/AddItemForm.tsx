@@ -28,6 +28,8 @@ import {
 import { saveTemplates } from "@/lib/storageService";
 import { Switch } from "@/components/ui/switch";
 import { AutocompleteInput } from './AutocompleteInput';
+import { cn } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 
 // Add URL validation helper
 const ensureUrlProtocol = (url: string) => {
@@ -508,60 +510,97 @@ export function AddItemForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Order Status</FormLabel>
-                  <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value}
+                  >
+                    <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select order status" />
+                        <SelectValue placeholder="Select status" />
                       </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(OrderStatus).map((status) => (
-                          <SelectItem key={status} value={status}>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(OrderStatus).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              "w-3 h-3 rounded-full",
+                              status === OrderStatus.PENDING && "bg-slate-400",
+                              status === OrderStatus.IN_PROGRESS && "bg-blue-500",
+                              status === OrderStatus.COMPLETED && "bg-green-500",
+                              status === OrderStatus.CANCELLED && "bg-red-500",
+                              status === OrderStatus.BACK_ORDERED && "bg-orange-500"
+                            )} />
                             {status.replace(/_/g, ' ')}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="deliveryPercentage"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Delivery Percentage</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {form.watch("orderStatus") === OrderStatus.IN_PROGRESS && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="deliveryPercentage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Delivery Progress</FormLabel>
+                      <FormControl>
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <Slider
+                              min={0}
+                              max={100}
+                              step={25}
+                              value={[field.value]}
+                              onValueChange={(vals) => field.onChange(vals[0])}
+                              progressColor={
+                                field.value === 0 ? "bg-slate-400" :
+                                field.value <= 25 ? "bg-orange-500" :
+                                field.value <= 50 ? "bg-blue-500" :
+                                field.value <= 75 ? "bg-yellow-500" :
+                                "bg-green-500"
+                              }
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>0%</span>
+                            <span>25%</span>
+                            <span>50%</span>
+                            <span>75%</span>
+                            <span>100%</span>
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="expectedDeliveryDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Expected Delivery Date</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="date"
-                      {...field}
-                      value={field.value || ''}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="expectedDeliveryDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Expected Delivery Date</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          {...field}
+                          value={field.value || ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
           </TabsContent>
         </Tabs>
 

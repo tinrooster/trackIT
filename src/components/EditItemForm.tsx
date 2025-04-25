@@ -15,16 +15,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { ensureUrlProtocol } from "@/utils/url";
 
-// Add URL validation helper
-const ensureUrlProtocol = (url: string) => {
-  if (!url) return url;
-  if (!/^https?:\/\//i.test(url)) {
-    return `https://${url}`;
-  }
-  return url;
-};
-
+// Define the schema type
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
@@ -33,7 +26,7 @@ const formSchema = z.object({
   unit: z.string().min(1, "Unit is required"),
   location: z.string().min(1, "Location is required"),
   cabinet: z.string().optional(),
-  quantity: z.number().min(1, "Quantity must be at least 1"),
+  quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   supplier: z.string().optional(),
   supplierWebsite: z.string()
     .transform((val) => val ? ensureUrlProtocol(val.trim()) : '')
@@ -41,13 +34,14 @@ const formSchema = z.object({
   project: z.string().optional(),
   notes: z.string().optional(),
   orderStatus: z.nativeEnum(OrderStatus).default(OrderStatus.COMPLETED),
-  deliveryPercentage: z.number().min(0).max(100).default(100),
+  deliveryPercentage: z.coerce.number().min(0).max(100).default(100),
   expectedDeliveryDate: z.string().optional(),
-  minQuantity: z.number().min(0).optional(),
-  costPerUnit: z.number().min(0).optional(),
+  minQuantity: z.coerce.number().min(0).optional(),
+  costPerUnit: z.coerce.number().min(0).optional(),
   barcode: z.string().optional(),
 });
 
+// Infer the form values type from the schema
 type FormValues = z.infer<typeof formSchema>;
 
 interface EditItemFormProps {
@@ -81,39 +75,66 @@ export function EditItemForm({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: item.name,
-      description: item.description || "",
-      category: item.category,
-      subcategory: item.subcategory || "",
-      unit: item.unit,
-      location: locations.find(loc => loc.id === item.location)?.name || item.location,
-      cabinet: item.cabinet || "",
-      quantity: item.quantity,
-      supplier: item.supplier || "",
-      supplierWebsite: item.supplierWebsite || "",
-      project: item.project || "",
-      notes: item.notes || "",
-      orderStatus: item.orderStatus || OrderStatus.COMPLETED,
-      deliveryPercentage: item.deliveryPercentage || 100,
-      expectedDeliveryDate: item.expectedDeliveryDate ? item.expectedDeliveryDate.toISOString().split('T')[0] : undefined,
-      minQuantity: item.minQuantity || 0,
-      costPerUnit: item.costPerUnit || 0,
-      barcode: item.barcode || "",
+      name: item.name ?? "",
+      description: item.description ?? "",
+      category: item.category ?? "",
+      subcategory: item.subcategory ?? "",
+      unit: item.unit ?? "",
+      location: item.location ?? "",
+      cabinet: item.cabinet ?? "",
+      quantity: item.quantity ?? 0,
+      supplier: item.supplier ?? "",
+      supplierWebsite: item.supplierWebsite ?? "",
+      project: item.project ?? "",
+      notes: item.notes ?? "",
+      orderStatus: item.orderStatus ?? OrderStatus.COMPLETED,
+      deliveryPercentage: item.deliveryPercentage ?? 100,
+      expectedDeliveryDate: item.expectedDeliveryDate ? 
+        (item.expectedDeliveryDate instanceof Date ? 
+          item.expectedDeliveryDate.toISOString().split('T')[0] : 
+          new Date(item.expectedDeliveryDate).toISOString().split('T')[0]
+        ) : undefined,
+      minQuantity: item.minQuantity ?? 0,
+      costPerUnit: item.costPerUnit ?? 0,
+      barcode: item.barcode ?? "",
     }
   });
 
-  // Initialize available cabinets based on initial location
+  // Initialize available cabinets based on initial location and update when location changes
   React.useEffect(() => {
-    const selectedLocation = form.watch('location');
+    const selectedLocation = form.watch('location') || item.location;
     if (selectedLocation) {
       setAvailableCabinets(
         cabinets.filter(cabinet => cabinet.locationId === selectedLocation)
       );
     }
-  }, [form.watch('location'), cabinets]);
+  }, [form.watch('location'), cabinets, item.location]);
 
-  const handleFormSubmit: SubmitHandler<FormValues> = (values) => {
-    onSubmit(values);
+  const handleFormSubmit = (values: FormValues) => {
+    // Preserve the original values and carefully merge updates
+    const processedValues = {
+      ...item, // Start with all original values
+      ...values, // Apply form updates
+      id: item.id, // Ensure ID is preserved
+      location: values.location ?? item.location,
+      supplier: values.supplier ?? item.supplier,
+      quantity: values.quantity !== undefined ? Number(values.quantity) : item.quantity,
+      minQuantity: values.minQuantity !== undefined ? Number(values.minQuantity) : (item.minQuantity ?? 0),
+      costPerUnit: values.costPerUnit !== undefined ? Number(values.costPerUnit) : (item.costPerUnit ?? 0),
+      deliveryPercentage: values.deliveryPercentage !== undefined ? Number(values.deliveryPercentage) : (item.deliveryPercentage ?? 100),
+      expectedDeliveryDate: values.expectedDeliveryDate ?? 
+        (item.expectedDeliveryDate instanceof Date ? 
+          item.expectedDeliveryDate.toISOString().split('T')[0] : 
+          item.expectedDeliveryDate
+        ),
+      lastUpdated: new Date()
+    };
+    
+    console.log('Original item:', item);
+    console.log('Form values:', values);
+    console.log('Processed values:', processedValues);
+    
+    onSubmit(processedValues);
   };
 
   return (
@@ -165,7 +186,7 @@ export function EditItemForm({
                     <FormLabel>Category*</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -220,12 +241,17 @@ export function EditItemForm({
                   <FormItem>
                     <FormLabel>Location*</FormLabel>
                     <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
+                      onValueChange={(value) => {
+                        console.log('Location changed to:', value);
+                        field.onChange(value);
+                      }}
+                      value={field.value ?? item.location ?? ""}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select location" />
+                          <SelectValue>
+                            {locations.find(loc => loc.id === (field.value ?? item.location))?.name || "Select location"}
+                          </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -310,8 +336,11 @@ export function EditItemForm({
                   <FormItem>
                     <FormLabel>Supplier</FormLabel>
                     <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value || ""}
+                      onValueChange={(value) => {
+                        console.log('Supplier changed to:', value);
+                        field.onChange(value);
+                      }}
+                      value={field.value ?? item.supplier ?? ""}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -340,9 +369,13 @@ export function EditItemForm({
                     <FormControl>
                       <Input 
                         type="number" 
-                        min="1" 
-                        {...field} 
-                        onChange={(e) => field.onChange(Number(e.target.value))} 
+                        min="1"
+                        {...field}
+                        value={field.value ?? item.quantity ?? 0}
+                        onChange={(e) => {
+                          console.log('Quantity changed to:', e.target.value);
+                          field.onChange(Number(e.target.value));
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -361,7 +394,11 @@ export function EditItemForm({
                         type="number" 
                         min="0" 
                         {...field} 
-                        onChange={(e) => field.onChange(Number(e.target.value))} 
+                        value={field.value ?? item.minQuantity ?? 0}
+                        onChange={(e) => {
+                          console.log('Min Quantity changed to:', e.target.value);
+                          field.onChange(Number(e.target.value));
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -396,7 +433,15 @@ export function EditItemForm({
                   <FormItem>
                     <FormLabel>Barcode</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Optional barcode" />
+                      <Input 
+                        {...field} 
+                        value={field.value ?? item.barcode ?? ""}
+                        onChange={(e) => {
+                          console.log('Barcode changed to:', e.target.value);
+                          field.onChange(e.target.value);
+                        }}
+                        placeholder="Optional barcode" 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -443,11 +488,11 @@ export function EditItemForm({
                   <FormLabel>Order Status</FormLabel>
                   <Select 
                     onValueChange={field.onChange} 
-                    defaultValue={field.value || OrderStatus.COMPLETED}
+                    defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select order status" />
+                        <SelectValue placeholder="Select status" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -480,16 +525,16 @@ export function EditItemForm({
                   name="deliveryPercentage"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Delivery Percentage</FormLabel>
+                      <FormLabel>Delivery Progress</FormLabel>
                       <FormControl>
                         <div className="space-y-2">
                           <div className="relative">
                             <Slider
-                              defaultValue={[field.value || 0]}
                               min={0}
                               max={100}
                               step={25}
-                              onValueChange={(vals: number[]) => field.onChange(vals[0])}
+                              value={[field.value]}
+                              onValueChange={(vals) => field.onChange(vals[0])}
                               progressColor={
                                 field.value === 0 ? "bg-slate-400" :
                                 field.value <= 25 ? "bg-orange-500" :
@@ -535,19 +580,13 @@ export function EditItemForm({
           </TabsContent>
         </Tabs>
 
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
+        <div className="flex justify-end space-x-2 mt-6">
+          <Button variant="outline" onClick={onCancel} type="button">
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save Changes'
-            )}
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save Changes
           </Button>
         </div>
       </form>
