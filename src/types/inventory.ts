@@ -1,29 +1,44 @@
-export type OrderStatus = 'delivered' | 'partially_delivered' | 'backordered' | 'on_order' | 'not_ordered';
+export enum OrderStatus {
+  PENDING = "PENDING",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+  BACK_ORDERED = "BACK_ORDERED"
+}
 
 export interface InventoryItem {
   id: string;
   name: string;
   description?: string;
-  quantity: number;
-  minQuantity?: number;
+  category: string;
+  subcategory?: string;
   unit: string;
-  costPerUnit?: number;
-  price?: number;
-  category?: string;
-  location?: string;
-  reorderLevel?: number;
-  barcode?: string;
-  notes?: string;
+  location: string;
+  cabinet?: string;
+  quantity: number;
   supplier?: string;
   supplierWebsite?: string;
   project?: string;
-  orderStatus: OrderStatus;
-  deliveryPercentage: number;
+  notes?: string;
+  qrCode?: string;
+  orderStatus?: OrderStatus;
+  deliveryPercentage?: number;
   expectedDeliveryDate?: Date;
+  minQuantity?: number;
+  costPerUnit?: number;
+  price?: number;
+  reorderLevel?: number;
+  barcode?: string;
+  serialNumber?: string;
+  manufacturer?: string;
+  modelNumber?: string;
+  warrantyExpirationDate?: Date;
+  lastMaintenanceDate?: Date;
+  nextMaintenanceDate?: Date;
+  maintenanceNotes?: string;
+  customFields?: Record<string, string>;
   lastUpdated: Date;
-  createdBy?: string; // User ID who created the item
-  lastModifiedBy?: string; // User ID who last modified the item
-  status?: 'in_stock' | 'pending' | 'backorder' | 'discontinued';
+  lastModifiedBy?: string; // Username of the person who last modified the item
 }
 
 export interface InventoryHistoryEntry {

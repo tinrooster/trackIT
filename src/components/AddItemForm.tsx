@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { saveTemplates } from "@/lib/storageService";
 import { Switch } from "@/components/ui/switch";
+import { AutocompleteInput } from './AutocompleteInput';
 
 // Add URL validation helper
 const ensureUrlProtocol = (url: string) => {
@@ -37,39 +38,56 @@ const ensureUrlProtocol = (url: string) => {
   return url;
 };
 
+interface Cabinet {
+  id: string;
+  name: string;
+  locationId: string;
+  description: string;
+  isSecure: boolean;
+  allowedCategories: string[];
+  qrCode: string;
+}
+
+interface Location extends ItemWithSubcategories {
+  id: string;
+  name: string;
+}
+
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
-  category: z.string().optional(),
-  quantity: z.number().min(0, "Quantity must be 0 or greater"),
+  category: z.string().min(1, "Category is required"),
+  quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   unit: z.string().min(1, "Unit is required"),
-  costPerUnit: z.number().min(0, "Cost must be 0 or greater").optional(),
-  location: z.string().optional(),
+  costPerUnit: z.coerce.number().min(0, "Cost must be 0 or greater").optional(),
+  location: z.string().min(1, "Location is required"),
   supplier: z.string().optional(),
-  supplierWebsite: z.string().optional()
-    .transform(val => val ? ensureUrlProtocol(val) : val)
-    .refine(
-      val => !val || /^https?:\/\//i.test(val),
-      "Invalid URL format"
-    ),
+  supplierWebsite: z.string()
+    .transform((val) => val ? ensureUrlProtocol(val.trim()) : '')
+    .optional(),
   project: z.string().optional(),
-  minQuantity: z.number().min(0, "Minimum quantity must be 0 or greater").optional(),
+  minQuantity: z.coerce.number().min(0, "Minimum quantity must be 0 or greater").optional(),
   notes: z.string().optional(),
-  orderStatus: z.enum(['delivered', 'partially_delivered', 'backordered', 'on_order', 'not_ordered'] as const).default('delivered'),
-  deliveryPercentage: z.number().min(0).max(100).default(100)
+  orderStatus: z.nativeEnum(OrderStatus).default(OrderStatus.PENDING),
+  deliveryPercentage: z.coerce.number().min(0).max(100).default(100),
+  barcode: z.string().optional(),
+  expectedDeliveryDate: z.string().optional(),
+  cabinet: z.string().optional(),
 });
+
+type FormData = z.infer<typeof formSchema>;
 
 interface AddItemFormProps {
   onSubmit: (values: Omit<InventoryItem, "id" | "lastUpdated">) => void;
   onCancel: () => void;
   categories: CategoryNode[];
   units: ItemWithSubcategories[];
-  locations: ItemWithSubcategories[];
-  suppliers: string[];
-  projects: string[];
-  isSubmitting: boolean;
+  locations: Location[];
+  suppliers: ItemWithSubcategories[];
+  projects: ItemWithSubcategories[];
+  isSubmitting?: boolean;
   initialValues?: Partial<Omit<InventoryItem, "id" | "lastUpdated">>;
-  selectedTemplate?: ItemTemplate;
+  existingItems?: InventoryItem[];
 }
 
 function flattenCategories(categories: CategoryNode[]): string[] {
@@ -91,54 +109,73 @@ function flattenCategories(categories: CategoryNode[]): string[] {
 export function AddItemForm({
   onSubmit,
   onCancel,
-  categories,
-  units,
-  locations,
-  suppliers,
-  projects,
-  isSubmitting,
-  initialValues,
-  selectedTemplate
+  categories = [],
+  units = [],
+  locations = [],
+  suppliers = [],
+  projects = [],
+  existingItems = [],
+  isSubmitting = false,
+  initialValues
 }: AddItemFormProps) {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isManualScanMode, setIsManualScanMode] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
+  const [orderStatus, setOrderStatus] = useState<OrderStatus>(OrderStatus.PENDING);
+  const [deliveryPercentage, setDeliveryPercentage] = useState<number>(100);
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<Date | undefined>(undefined);
+  const [cabinets, setCabinets] = React.useState<Cabinet[]>([])
+  const [availableCabinets, setAvailableCabinets] = React.useState<Cabinet[]>([])
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  // Extract unique notes and websites from existing items
+  const existingNotes = React.useMemo(() => 
+    Array.from(new Set(existingItems
+      .map(item => item.notes)
+      .filter(Boolean) as string[]
+    )), [existingItems]
+  );
+
+  const existingWebsites = React.useMemo(() => 
+    Array.from(new Set(existingItems
+      .map(item => item.supplierWebsite)
+      .filter(Boolean) as string[]
+    )), [existingItems]
+  );
+
+  const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialValues?.name || "",
       description: initialValues?.description || "",
-      category: initialValues?.category || "",
-      quantity: initialValues?.quantity || 0,
-      minQuantity: initialValues?.minQuantity || 0,
-      costPerUnit: initialValues?.costPerUnit || 0,
+      quantity: initialValues?.quantity || 1,
       unit: initialValues?.unit || "",
+      costPerUnit: initialValues?.costPerUnit,
+      category: initialValues?.category || "",
       location: initialValues?.location || "",
+      minQuantity: initialValues?.minQuantity,
+      barcode: initialValues?.barcode || "",
+      notes: initialValues?.notes || "",
       supplier: initialValues?.supplier || "",
       supplierWebsite: initialValues?.supplierWebsite || "",
       project: initialValues?.project || "",
-      notes: initialValues?.notes || "",
-      orderStatus: initialValues?.orderStatus || 'delivered',
-      deliveryPercentage: initialValues?.deliveryPercentage || 100
+      orderStatus: initialValues?.orderStatus || OrderStatus.PENDING,
+      deliveryPercentage: initialValues?.deliveryPercentage || 100,
+      expectedDeliveryDate: initialValues?.expectedDeliveryDate ? initialValues.expectedDeliveryDate.toISOString().split('T')[0] : undefined,
+      cabinet: initialValues?.cabinet || ""
     }
   });
 
-  // Reset form when initialValues change
-  useEffect(() => {
-    if (initialValues) {
-      form.reset(initialValues);
-    }
-  }, [initialValues, form]);
+  const handleSubmit = async (values: FormData) => {
+    const locationObj = locations.find(loc => loc.id === values.location);
+    const locationName = locationObj ? locationObj.name : values.location; // Fallback to ID if not found
+    console.log("[AddItemForm] Location ID:", values.location, "Resolved Name:", locationName);
 
-  const handleFormSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
-      await onSubmit(values);
-      form.reset(); // Reset form after successful submission
-    } catch (error) {
-      console.error("Form submission error:", error);
-      toast.error("Failed to submit form");
-      throw error; // Re-throw to be caught by the dialog's error handler
-    }
+    const formattedValues = {
+      ...values,
+      location: locationName, // Use the name here
+      expectedDeliveryDate: values.expectedDeliveryDate ? new Date(values.expectedDeliveryDate) : undefined
+    };
+    await onSubmit(formattedValues as Omit<InventoryItem, "id" | "lastUpdated">);
   };
 
   const handleScanResult = (result: string) => {
@@ -167,266 +204,366 @@ export function AddItemForm({
       supplier: data.supplier ?? "",
       minQuantity: Number(data.minQuantity) || 0,
       quantity: Number(data.quantity) || 0,
-      orderStatus: "not_ordered",
+      orderStatus: OrderStatus.PENDING,
       deliveryPercentage: 0
     };
     saveTemplates([template]);
     toast.success("Template saved successfully");
   };
 
+  // Extract suggestions from the data
+  const itemNameSuggestions = existingItems.map(item => item.name);
+  const descriptionSuggestions = existingItems.map(item => item.description).filter(Boolean) as string[];
+  const barcodeSuggestions = existingItems.map(item => item.barcode).filter(Boolean) as string[];
+  const supplierWebsiteSuggestions = existingItems.map(item => item.supplierWebsite).filter(Boolean) as string[];
+
+  console.log('Existing Items:', existingItems);
+  console.log('Name Suggestions:', itemNameSuggestions);
+
+  // Load cabinets from localStorage
+  React.useEffect(() => {
+    const savedCabinets = localStorage.getItem('cabinets');
+    if (savedCabinets) {
+      setCabinets(JSON.parse(savedCabinets));
+    }
+  }, []);
+
+  // Filter cabinets based on selected location
+  React.useEffect(() => {
+    const selectedLocation = form.watch('location');
+    const locationObj = locations.find(loc => loc.id === selectedLocation);
+    setAvailableCabinets(
+      cabinets.filter(cabinet => cabinet.locationId === locationObj?.id)
+    );
+  }, [form.watch('location'), cabinets, locations]);
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder="Item name" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="order">Order Info</TabsTrigger>
+          </TabsList>
 
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Description</FormLabel>
-              <FormControl>
-                <Textarea {...field} placeholder="Item description" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <TabsContent value="details" className="space-y-4">
+            {/* Full-width fields */}
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name*</FormLabel>
+                  <FormControl>
+                    <AutocompleteInput
+                      {...field}
+                      suggestions={itemNameSuggestions}
+                      placeholder="Item name"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Category</FormLabel>
-                <FormControl>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {flattenCategories(categories).map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <AutocompleteInput
+                      {...field}
+                      suggestions={descriptionSuggestions}
+                      placeholder="Brief description"
+                      className="min-h-[60px]"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="unit"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Unit</FormLabel>
-                <FormControl>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select unit" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {units.map(unit => (
-                        <SelectItem key={unit.id} value={unit.name}>
-                          {unit.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+            {/* Half-width fields grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <FormControl>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map(category => (
+                            <SelectItem key={category.name} value={category.name}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="quantity"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Quantity</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    {...field}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              <FormField
+                control={form.control}
+                name="unit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Unit*</FormLabel>
+                    <FormControl>
+                      <Select onValueChange={field.onChange} value={field.value || "single"}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {units.map(unit => (
+                            <SelectItem key={unit.id} value={unit.name}>
+                              {unit.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <FormField
-            control={form.control}
-            name="minQuantity"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Minimum Quantity</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    {...field}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location*</FormLabel>
+                    <FormControl>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select location">
+                            {locations.find(loc => loc.id === field.value)?.name || "Select location"}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {locations.map((location) => (
+                            <SelectItem key={location.id} value={location.id}>
+                              {location.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        <FormField
-          control={form.control}
-          name="costPerUnit"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Cost Per Unit</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  step="0.01"
-                  {...field}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
+              {availableCabinets.length > 0 && (
+                <FormField
+                  control={form.control}
+                  name="cabinet"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cabinet</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select cabinet" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">None</SelectItem>
+                            {availableCabinets.map(cabinet => (
+                              <SelectItem key={cabinet.id} value={cabinet.id}>
+                                {cabinet.name} {cabinet.isSecure && '🔒'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormDescription>
+                        Items in secure cabinets require checkout.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+              )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="location"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Location</FormLabel>
-                <FormControl>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map(location => (
-                        <SelectItem key={location.id} value={location.name}>
-                          {location.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              <FormField
+                control={form.control}
+                name="project"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Project</FormLabel>
+                    <FormControl>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select project" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projects.map(project => (
+                            <SelectItem key={project.id} value={project.name}>
+                              {project.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <FormField
-            control={form.control}
-            name="project"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Project</FormLabel>
-                <FormControl>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map(project => (
-                        <SelectItem key={project} value={project}>
-                          {project}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+              <FormField
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quantity*</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="1" defaultValue="1" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="supplier"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Supplier</FormLabel>
-                <FormControl>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {suppliers.map(supplier => (
-                        <SelectItem key={supplier} value={supplier}>
-                          {supplier}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              <FormField
+                control={form.control}
+                name="minQuantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Minimum Quantity</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" step="any" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-          <FormField
-            control={form.control}
-            name="supplierWebsite"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Supplier Website</FormLabel>
-                <FormControl>
-                  <Input 
-                    {...field} 
-                    placeholder="www.example.com"
-                    type="text"
-                  />
-                </FormControl>
-                <FormDescription>
-                  Enter website without http:// - it will be added automatically
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+            {/* Full-width Notes field */}
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes</FormLabel>
+                  <FormControl>
+                    <AutocompleteInput
+                      {...field}
+                      suggestions={existingNotes}
+                      placeholder="Additional notes"
+                      className="min-h-[60px]"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Notes</FormLabel>
-              <FormControl>
-                <Textarea {...field} placeholder="Additional notes" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            {/* Bottom half-width fields */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="costPerUnit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cost Per Unit ($)</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" step="0.01" placeholder="e.g., 1.25" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="barcode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Barcode</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Optional barcode" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="order" className="space-y-4">
+            <FormField
+              control={form.control}
+              name="orderStatus"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Order Status</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select order status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.values(OrderStatus).map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.replace(/_/g, ' ')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="deliveryPercentage"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Delivery Percentage</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      {...field}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="expectedDeliveryDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Expected Delivery Date</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      {...field}
+                      value={field.value || ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </TabsContent>
+        </Tabs>
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onCancel}>
@@ -436,17 +573,20 @@ export function AddItemForm({
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
+                Adding...
               </>
             ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save Item
-              </>
+              'Add Item'
             )}
           </Button>
         </div>
       </form>
+
+      <BarcodeScannerDialog
+        open={isScannerOpen}
+        onOpenChange={setIsScannerOpen}
+        onScan={handleScanResult}
+      />
     </Form>
   );
 }

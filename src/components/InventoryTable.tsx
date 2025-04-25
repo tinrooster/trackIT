@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import * as React from 'react';
+import { useState, useMemo, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -9,16 +10,34 @@ import {
 } from "@/components/ui/table";
 import { InventoryItem } from "@/types/inventory";
 import { format } from "date-fns";
-import { Pencil, ArrowUpDown, FileDown, DollarSign, LayoutList, LayoutGrid } from "lucide-react";
+import { Pencil, ArrowUpDown, FileDown, DollarSign, LayoutList, LayoutGrid, Box, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportToExcel } from "@/lib/exportUtils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 type SortConfig = {
-  key: keyof InventoryItem | 'totalValue';
+  key: keyof InventoryItem | 'totalValue' | 'cabinet';
   direction: "asc" | "desc";
 };
+
+interface Cabinet {
+  id: string;
+  name: string;
+  locationId: string;
+  description: string;
+  isSecure: boolean;
+  allowedCategories: string[];
+  qrCode: string;
+}
 
 // Helper to format currency
 const formatCurrency = (value: number | undefined) => {
@@ -42,20 +61,76 @@ const EXPORT_COLUMNS: (keyof InventoryItem | 'totalValue')[] = [
 interface InventoryTableProps {
   items: InventoryItem[];
   onEdit: (item: InventoryItem) => void;
+  onDelete?: (item: InventoryItem) => void;
   searchQuery?: string;
   filters?: Record<string, string>;
   highlightRowId?: string | null;
+  showActions?: boolean;
 }
 
 export function InventoryTable({
   items,
   onEdit,
+  onDelete,
   searchQuery = "",
   filters = {},
-  highlightRowId = null
+  highlightRowId = null,
+  showActions = true
 }: InventoryTableProps) {
-  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "name", direction: "asc" });
+  const [cabinets, setCabinets] = useState<Cabinet[]>([]);
+  const [cabinetFilter, setCabinetFilter] = useState<string>('all');
   const [isDetailedView, setIsDetailedView] = useState(false);
+  const [locations, setLocations] = useState<{ id: string; name: string; }[]>([]);
+
+  // Load cabinets and locations from localStorage
+  useEffect(() => {
+    const savedCabinets = localStorage.getItem('cabinets');
+    if (savedCabinets) {
+      setCabinets(JSON.parse(savedCabinets));
+    }
+
+    console.log('[DEBUG] Loading locations from localStorage');
+    const savedLocations = localStorage.getItem('inventory-locations');
+    console.log('[DEBUG] Raw saved locations:', savedLocations);
+    
+    if (savedLocations) {
+      try {
+        const parsedLocations = JSON.parse(savedLocations);
+        console.log('[DEBUG] Parsed locations:', parsedLocations);
+        setLocations(parsedLocations);
+      } catch (error) {
+        console.error('[DEBUG] Error parsing locations:', error);
+        setLocations([]);
+      }
+    } else {
+      console.log('[DEBUG] No locations found in localStorage');
+      setLocations([]);
+    }
+  }, []);
+
+  const getLocationName = (locationId: string) => {
+    console.log('[DEBUG] Getting location name for ID:', locationId);
+    console.log('[DEBUG] Available locations:', locations);
+    
+    if (!locationId) return 'No Location';
+    
+    const location = locations.find(loc => loc.id === locationId);
+    if (!location) {
+      console.log('[DEBUG] Location not found for ID:', locationId);
+      // Try to parse the locationId as a potential name (for backward compatibility)
+      return locationId;
+    }
+    
+    console.log('[DEBUG] Found location:', location);
+    return location.name;
+  };
+
+  const getCabinetName = (cabinetId: string | undefined) => {
+    if (!cabinetId) return '';
+    const cabinet = cabinets.find(c => c.id === cabinetId);
+    return cabinet ? cabinet.name : cabinetId;
+  };
 
   // Add totalValue to items for sorting/display
   const itemsWithTotalValue = useMemo(() => {
@@ -66,29 +141,57 @@ export function InventoryTable({
   }, [items]);
 
   const sortedItems = useMemo(() => {
-    let sortableItems = [...itemsWithTotalValue];
-    if (sortConfig !== null) {
-      sortableItems.sort((a, b) => {
-        const aValue = a[sortConfig.key as keyof typeof a];
-        const bValue = b[sortConfig.key as keyof typeof b];
-        if (aValue === undefined || bValue === undefined) {
-          if (aValue === undefined && bValue === undefined) return 0;
-          if (aValue === undefined) return sortConfig.direction === 'asc' ? -1 : 1;
-          if (bValue === undefined) return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        if (sortConfig.key === 'lastUpdated' && aValue instanceof Date && bValue instanceof Date) {
-          return sortConfig.direction === 'asc' ? aValue.getTime() - bValue.getTime() : bValue.getTime() - aValue.getTime();
-        }
-        if (typeof aValue === 'number' && typeof bValue === 'number') {
-          return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
-        }
-        if (String(aValue).toLowerCase() < String(bValue).toLowerCase()) return sortConfig.direction === "asc" ? -1 : 1;
-        if (String(aValue).toLowerCase() > String(bValue).toLowerCase()) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
+    let sorted = [...itemsWithTotalValue];
+
+    // Apply cabinet filter
+    if (cabinetFilter !== 'all') {
+      sorted = sorted.filter(item => {
+        if (cabinetFilter === 'none') return !item.cabinet;
+        return item.cabinet === cabinetFilter;
       });
     }
-    return sortableItems;
-  }, [itemsWithTotalValue, sortConfig]);
+
+    // Apply sorting
+    sorted.sort((a, b) => {
+      if (sortConfig.key === 'cabinet') {
+        const cabinetA = getCabinetName(a.cabinet) || '';
+        const cabinetB = getCabinetName(b.cabinet) || '';
+        return sortConfig.direction === 'asc' 
+          ? cabinetA.localeCompare(cabinetB)
+          : cabinetB.localeCompare(cabinetA);
+      }
+
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+
+      if (aValue === undefined || bValue === undefined) {
+        if (aValue === undefined && bValue === undefined) return 0;
+        if (aValue === undefined) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (bValue === undefined) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      }
+
+      if (sortConfig.key === 'lastUpdated') {
+        const aDate = aValue instanceof Date ? aValue : new Date(aValue as string);
+        const bDate = bValue instanceof Date ? bValue : new Date(bValue as string);
+        return sortConfig.direction === 'asc' 
+          ? aDate.getTime() - bDate.getTime() 
+          : bDate.getTime() - aDate.getTime();
+      }
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+
+      const aString = String(aValue).toLowerCase();
+      const bString = String(bValue).toLowerCase();
+      return sortConfig.direction === 'asc'
+        ? aString.localeCompare(bString)
+        : bString.localeCompare(aString);
+    });
+
+    return sorted;
+  }, [itemsWithTotalValue, sortConfig, cabinetFilter, cabinets]);
 
   // Apply filters first
   const filteredItemsByDropdown = useMemo(() => {
@@ -116,16 +219,15 @@ export function InventoryTable({
       (item.notes && item.notes.toLowerCase().includes(lowerCaseQuery)) ||
       (item.barcode && item.barcode.toLowerCase().includes(lowerCaseQuery)) ||
       (item.supplier && item.supplier.toLowerCase().includes(lowerCaseQuery)) ||
-      (item.location && item.location.toLowerCase().includes(lowerCaseQuery))
+      (getLocationName(item.location).toLowerCase().includes(lowerCaseQuery))
     );
-  }, [filteredItemsByDropdown, searchQuery]);
+  }, [filteredItemsByDropdown, searchQuery, locations]);
 
-  const requestSort = (key: keyof InventoryItem | 'totalValue') => {
-    let direction: "asc" | "desc" = "asc";
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
-    setSortConfig({ key, direction });
+  const handleSort = (key: SortConfig['key']) => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc"
+    }));
   };
 
   const handleExportCurrentView = () => {
@@ -193,6 +295,29 @@ export function InventoryTable({
         </Button>
       </div>
 
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-2">
+          <Label>Filter by Cabinet:</Label>
+          <Select
+            value={cabinetFilter}
+            onValueChange={setCabinetFilter}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select cabinet" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Cabinets</SelectItem>
+              <SelectItem value="none">No Cabinet</SelectItem>
+              {cabinets.map(cabinet => (
+                <SelectItem key={cabinet.id} value={cabinet.id}>
+                  {cabinet.name} {cabinet.isSecure && '🔒'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -201,7 +326,7 @@ export function InventoryTable({
                 {key !== 'actions' ? (
                   <Button
                     variant="ghost"
-                    onClick={() => requestSort(key as keyof InventoryItem | 'totalValue')}
+                    onClick={() => handleSort(key as keyof InventoryItem | 'totalValue' | 'cabinet')}
                     className="p-0 h-auto text-left"
                   >
                     {formatHeader(key)}
@@ -225,54 +350,54 @@ export function InventoryTable({
             finalFilteredItems.map((item) => (
               <TableRow
                 key={item.id}
-                className={cn("h-12", highlightRowId === item.id && "bg-primary/10 animate-pulse-bg")}
+                className={cn(
+                  "group hover:bg-muted/50",
+                  { "bg-muted": highlightRowId === item.id }
+                )}
               >
-                {activeColumns.map(key => {
-                  if (key === 'actions') {
+                {activeColumns.map((column) => {
+                  if (column === 'actions') {
                     return (
-                      <TableCell key={key} className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onEdit(item)}
-                          title="Edit Item"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                      <TableCell key={column} className="text-right">
+                        {showActions && (
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onEdit(item)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
                       </TableCell>
                     );
                   }
-                  const value = item[key as keyof typeof item];
-                  let displayValue: React.ReactNode = '-';
-                  if (value !== null && value !== undefined) {
-                    if (key === 'lastUpdated' && value instanceof Date) {
-                      displayValue = (
-                        <div className="flex flex-col">
-                          <span>{format(value, 'MMM d, yyyy')}</span>
-                          {item.lastModifiedBy && (
-                            <span className="text-xs text-muted-foreground">
-                              by {item.lastModifiedBy}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    } else if (key === 'costPerUnit' || key === 'totalValue') {
-                      displayValue = formatCurrency(value as number | undefined);
-                    } else if (key === 'quantity') {
-                      displayValue = `${value} ${item.unit || ''}`;
-                    } else {
-                      displayValue = String(value);
-                    }
+
+                  let cellContent: React.ReactNode = '';
+
+                  switch (column) {
+                    case 'lastUpdated':
+                      cellContent = item[column] instanceof Date 
+                        ? format(item[column] as Date, "MMM d, yyyy")
+                        : format(new Date(item[column] as string), "MMM d, yyyy");
+                      break;
+                    case 'totalValue':
+                      cellContent = formatCurrency(item.costPerUnit ? item.quantity * item.costPerUnit : undefined);
+                      break;
+                    case 'costPerUnit':
+                      cellContent = formatCurrency(item[column]);
+                      break;
+                    case 'location':
+                      cellContent = getLocationName(item[column]);
+                      break;
+                    default:
+                      cellContent = item[column]?.toString() || '-';
                   }
-                  const alignClass = ['quantity', 'costPerUnit', 'totalValue'].includes(key) ? 'text-right' : '';
-                  const truncateClass = ['description', 'notes', 'supplierWebsite', 'project'].includes(key) ? 'max-w-[150px] truncate' : '';
+
                   return (
-                    <TableCell
-                      key={key}
-                      className={cn(alignClass, truncateClass)}
-                      title={typeof displayValue === 'string' ? displayValue : undefined}
-                    >
-                      {displayValue}
+                    <TableCell key={column}>
+                      {cellContent}
                     </TableCell>
                   );
                 })}

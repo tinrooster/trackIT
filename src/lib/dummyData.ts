@@ -5,10 +5,14 @@ import { STORAGE_KEYS } from "./storageService";
 
 const categories = ["Cable", "Connector", "Hardware", "Tool", "Software", "Expendable", "Fiber Optic", "Power", "Networking", "Audio", "Video", "Lighting"];
 const units = ["ft", "each", "box", "spool", "kit", "license", "pair", "meter"];
-const locations = ["Rm 105 A", "Engineering Store", "PCR 1 Project Area", "TE Room", "Lighting Rm", "Studio ", "Tech Bench", "Remote Kit"];
+const locationNames = ["Rm 105 A", "Engineering Store", "PCR 1 Project Area", "TE Room", "Lighting Rm", "Studio ", "Tech Bench", "Remote Kit"];
+const locations = locationNames.map(name => ({
+  id: uuidv4(),
+  name,
+  subcategories: []
+}));
 const suppliers = ["Joseph Electronics", "Markertek", "B&H Photo", "Clark Wire & Cable", "Amazon Business", "Sweetwater", "Local Hardware"];
 const projects = ["2025:SUTRO", "2024:NAB", "MAINTENANCE", "STUDIO_UPGRADE", "Ultrix", "INFRASTRUCTURE"];
-const orderStatuses: OrderStatus[] = ['delivered', 'partially_delivered', 'backordered', 'on_order', 'not_ordered'];
 
 const generateRandomDate = (start: Date, end: Date): Date => {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
@@ -27,20 +31,32 @@ const generateBarcode = (): string => {
   return Math.random().toString(36).substring(2, 15).toUpperCase();
 }
 
+function generateRandomOrderStatus(): OrderStatus {
+  const statuses = [
+    OrderStatus.PENDING,
+    OrderStatus.IN_PROGRESS,
+    OrderStatus.COMPLETED,
+    OrderStatus.CANCELLED
+  ];
+  return statuses[Math.floor(Math.random() * statuses.length)];
+}
+
 const dummyItems: InventoryItem[] = [];
 
 for (let i = 0; i < 200; i++) {
   const category = categories[generateRandomInt(0, categories.length - 1)];
   const unit = units[generateRandomInt(0, units.length - 1)];
+  const location = locations[generateRandomInt(0, locations.length - 1)];
   const quantity = generateRandomInt(0, category === "Cable" ? 5000 : 100);
   const costPerUnit = category === "Cable" ? generateRandomFloat(0.10, 1.50) : generateRandomFloat(5, 500);
   const price = costPerUnit * 1.3; // 30% markup
   const reorderLevel = generateRandomInt(0, quantity > 10 ? Math.floor(quantity * 0.3) : 5);
   const minQuantity = reorderLevel;
-  const orderStatus = orderStatuses[generateRandomInt(0, orderStatuses.length - 1)];
-  const deliveryPercentage = orderStatus === 'delivered' ? 100 : (orderStatus === 'partially_delivered' ? generateRandomInt(30, 90) : (orderStatus === 'on_order' ? generateRandomInt(0, 50) : 0));
-  const lastUpdated = generateRandomDate(subDays(new Date(), 90), new Date());
-  const expectedDeliveryDate = (orderStatus === 'backordered' || orderStatus === 'on_order') ? generateRandomDate(new Date(), addDays(new Date(), 30)) : undefined;
+  const orderStatus = generateRandomOrderStatus();
+  const deliveryPercentage = orderStatus === OrderStatus.COMPLETED ? 100 : (orderStatus === OrderStatus.IN_PROGRESS ? generateRandomInt(30, 90) : 0);
+  const lastUpdated = generateRandomDate(new Date(2023, 0, 1), new Date());
+  const lastOrdered = orderStatus === OrderStatus.COMPLETED ? new Date() : undefined;
+  const expectedDelivery = orderStatus === OrderStatus.IN_PROGRESS ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : undefined;
 
   dummyItems.push({
     id: uuidv4(),
@@ -52,7 +68,7 @@ for (let i = 0; i < 200; i++) {
     costPerUnit: Math.random() > 0.1 ? costPerUnit : undefined, // Some items without cost
     price: Math.random() > 0.1 ? price : undefined, // Some items without price
     category: category,
-    location: locations[generateRandomInt(0, locations.length - 1)],
+    location: location.id,
     reorderLevel: Math.random() > 0.2 ? reorderLevel : undefined, // Some items without reorder level
     barcode: Math.random() > 0.3 ? generateBarcode() : undefined, // Some items without barcode
     notes: Math.random() > 0.7 ? `Additional notes for item ${i + 1}` : undefined,
@@ -62,11 +78,18 @@ for (let i = 0; i < 200; i++) {
     lastUpdated: lastUpdated,
     orderStatus: orderStatus,
     deliveryPercentage: deliveryPercentage,
-    expectedDeliveryDate: expectedDeliveryDate,
+    expectedDeliveryDate: expectedDelivery,
   });
 }
 
 // Update the specific example item
+const warehouseLocation = {
+  id: uuidv4(),
+  name: "Warehouse A",
+  subcategories: []
+};
+locations.push(warehouseLocation);
+
 dummyItems.push({
   id: uuidv4(),
   name: "Belden 1855a Yellow",
@@ -77,7 +100,7 @@ dummyItems.push({
   costPerUnit: 340,
   price: 442, // ~30% markup
   category: "Cable",
-  location: "Warehouse A",
+  location: warehouseLocation.id,
   reorderLevel: 5,
   barcode: generateBarcode(),
   notes: "14 ordered total, 4 backordered ETA 2 weeks",
@@ -85,7 +108,7 @@ dummyItems.push({
   supplierWebsite: "www.josephelectronics.com",
   project: "2025:SUTRO",
   lastUpdated: new Date(),
-  orderStatus: 'partially_delivered',
+  orderStatus: OrderStatus.IN_PROGRESS,
   deliveryPercentage: Math.round((10/14)*100), // ~71%
   expectedDeliveryDate: addDays(new Date(), 14)
 });

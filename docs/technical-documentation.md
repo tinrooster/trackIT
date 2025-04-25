@@ -267,3 +267,98 @@ The application uses Tailwind CSS for styling, with a custom theme defined in `t
 - **Inventory Forecasting**: Predict future inventory needs
 - **Template Versioning**: Track changes to templates over time
 - **Batch Operation Templates**: Create reusable batch operation templates
+
+# UI Components
+
+## Progress Slider
+The progress slider is used in the order status tracking to show delivery percentage. It features a color-changing progress bar that updates based on the completion percentage.
+
+### Implementation
+The slider is built using Radix UI's slider primitive with custom styling and color progression:
+
+```tsx
+// src/components/ui/slider.tsx
+const Slider = React.forwardRef<
+  React.ElementRef<typeof SliderPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> & {
+    progressColor?: string;
+  }
+>(({ className, progressColor, ...props }, ref) => (
+  <SliderPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative flex w-full touch-none select-none items-center",
+      className
+    )}
+    {...props}
+  >
+    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-slate-200">
+      <SliderPrimitive.Range 
+        className={cn(
+          "absolute h-full",
+          progressColor || "bg-blue-500"
+        )}
+      />
+    </SliderPrimitive.Track>
+    <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" />
+  </SliderPrimitive.Root>
+))
+```
+
+### Usage
+```tsx
+<Slider
+  value={[deliveryPercentage]}
+  min={0}
+  max={100}
+  step={25}
+  onValueChange={(vals: number[]) => onDeliveryPercentageChange(vals[0])}
+  progressColor={
+    deliveryPercentage === 0 ? "bg-slate-400" :
+    deliveryPercentage <= 25 ? "bg-orange-500" :
+    deliveryPercentage <= 50 ? "bg-blue-500" :
+    deliveryPercentage <= 75 ? "bg-yellow-500" :
+    "bg-green-500"
+  }
+/>
+```
+
+### Color Progression
+The slider's fill color changes based on the completion percentage:
+- 0%: Gray (`bg-slate-400`)
+- 1-25%: Orange (`bg-orange-500`)
+- 26-50%: Blue (`bg-blue-500`)
+- 51-75%: Yellow (`bg-yellow-500`)
+- 76-100%: Green (`bg-green-500`)
+
+### Key Features
+1. Progressive color fill based on percentage
+2. 25% step increments
+3. Dynamic color updates
+4. Accessible using Radix UI primitives
+5. Only visible in "In Progress" status
+
+### Dependencies
+- @radix-ui/react-slider
+- tailwindcss
+- clsx/class-variance-authority
+
+### Version History
+
+#### v1.2.0 (Current)
+- Implemented progressive color fill
+- Added `progressColor` prop
+- Fixed color application
+- Added 25% step increments
+
+#### v1.1.0
+- Added multi-segment color display
+
+#### v1.0.0
+- Initial implementation with fixed blue color
+
+### Troubleshooting
+If colors aren't displaying:
+1. Check `progressColor` prop is being passed
+2. Verify tailwind classes are configured
+3. Ensure @radix-ui/react-slider is installed

@@ -5,7 +5,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { InventoryItem, CategoryNode, ItemWithSubcategories } from '@/types/inventory';
-import { BatchOperations } from '@/components/BatchOperations';
+import BatchOperations from '@/components/BatchOperations';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 import { getSettings } from '@/lib/storageService';
@@ -69,7 +69,7 @@ function flattenCategories(categories: CategoryNode[]): string[] {
   return flattened.sort();
 }
 
-// Helper to get unique values from an array of items for a specific field
+// Get unique values from an array of items for a specific field
 const getUniqueValues = (items: InventoryItem[], field: keyof InventoryItem): string[] => {
   const values = items
     .map(item => item[field])
@@ -82,7 +82,7 @@ const convertToCategories = (items: ItemWithSubcategories[]): CategoryNode[] => 
   return items.map(item => ({
     id: item.id,
     name: item.name,
-    children: item.subcategories ? item.subcategories.map((sub: string) => ({
+    children: item.subcategories ? item.subcategories.map(sub => ({
       id: crypto.randomUUID(),
       name: sub,
       parentId: item.id
@@ -128,19 +128,18 @@ export default function InventoryPage() {
   const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [units, setUnits] = useState<ItemWithSubcategories[]>([]);
   const [locations, setLocations] = useState<ItemWithSubcategories[]>([]);
-  const [suppliers, setSuppliers] = useState<string[]>([]);
-  const [projects, setProjects] = useState<string[]>([]);
+  const [suppliers, setSuppliers] = useState<ItemWithSubcategories[]>([]);
+  const [projects, setProjects] = useState<ItemWithSubcategories[]>([]);
 
   // Load settings from localStorage
   useEffect(() => {
     const loadSettings = () => {
       const settings = getSettings();
-      // Transform settings into appropriate formats
       setCategories(convertToCategories(settings.categories));
       setUnits(settings.units);
       setLocations(settings.locations);
-      setSuppliers(settings.suppliers.map(sup => sup.name));
-      setProjects(settings.projects.map(proj => proj.name));
+      setSuppliers(settings.suppliers);
+      setProjects(settings.projects);
     };
     loadSettings();
   }, []);
@@ -151,6 +150,16 @@ export default function InventoryPage() {
   // Add sorting state
   const [sortField, setSortField] = useState<keyof InventoryItem>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const [updateTrigger, setUpdateTrigger] = useState(0);
+
+  // Get flattened categories for filtering
+  const flattenedCategories = useMemo(() => flattenCategories(categories), [categories]);
+
+  // Get unique values for filters
+  const uniqueLocations = useMemo(() => locations.map(loc => loc.name), [locations]);
+  const uniqueProjects = useMemo(() => projects.map(proj => proj.name), [projects]);
+  const uniqueSuppliers = useMemo(() => suppliers.map(sup => sup.name), [suppliers]);
 
   // Update the filtered items to include sorting
   const filteredItems = useMemo(() => {
@@ -186,9 +195,6 @@ export default function InventoryPage() {
       return sortDirection === 'asc' ? comparison : -comparison;
     });
   }, [items, searchQuery, selectedCategory, selectedLocation, selectedProject, sortField, sortDirection]);
-
-  // Get flattened categories for filtering
-  const flattenedCategories = useMemo(() => flattenCategories(categories), [categories]);
 
   // Handle column sort
   const handleSort = (field: keyof InventoryItem) => {
@@ -277,8 +283,7 @@ export default function InventoryPage() {
       ...newItemData,
       id: uuidv4(),
       lastUpdated: new Date(),
-      createdBy: user?.displayName || user?.username || 'Unknown',
-      lastModifiedBy: user?.displayName || user?.username || 'Unknown'
+      lastModifiedBy: user?.username || user?.displayName || 'Unknown'
     };
     
     setItems([...items, newItem]);
@@ -297,7 +302,11 @@ export default function InventoryPage() {
   const handleSaveEdit = async (updatedItem: InventoryItem) => {
     try {
       const updatedItems = items.map(item => 
-        item.id === updatedItem.id ? { ...updatedItem, lastUpdated: new Date() } : item
+        item.id === updatedItem.id ? { 
+          ...updatedItem, 
+          lastUpdated: new Date(),
+          lastModifiedBy: user?.username || user?.displayName || 'Unknown'
+        } : item
       );
       setItems(updatedItems);
       toast.success(`Updated "${updatedItem.name}"`);
@@ -316,8 +325,7 @@ export default function InventoryPage() {
       ...newItemData,
       id: uuidv4(),
       lastUpdated: new Date(),
-      createdBy: user?.id,
-      lastModifiedBy: user?.id
+      lastModifiedBy: user?.username || user?.displayName || 'Unknown'
     } as InventoryItem;
     
     setItems([...items, newItem]);
@@ -341,23 +349,6 @@ export default function InventoryPage() {
     }
   };
 
-  // Get unique values for filters
-  const uniqueLocations = useMemo(() => {
-    const allLocations = locations.flatMap(loc => [
-      loc.name,
-      ...(loc.subcategories?.map(sub => `${loc.name}/${sub}`) || [])
-    ]);
-    return [...new Set(allLocations)];
-  }, [locations]);
-
-  const uniqueUnits = useMemo(() => {
-    const allUnits = units.flatMap(unit => [
-      unit.name,
-      ...(unit.subcategories?.map(sub => `${unit.name}/${sub}`) || [])
-    ]);
-    return [...new Set(allUnits)];
-  }, [units]);
-
   useEffect(() => {
     // If we have a template from navigation, open the add dialog
     if (template) {
@@ -370,10 +361,47 @@ export default function InventoryPage() {
   const [isDetailedView, setIsDetailedView] = useState(false);
 
   // Define column sets for different views
-  const SIMPLE_COLUMNS = ['name', 'category', 'location', 'project', 'quantity'];
+  const SIMPLE_COLUMNS = ['name', 'category', 'location', 'project', 'quantity', 'lastUpdated'];
   const DETAILED_COLUMNS = ['name', 'category', 'quantity', 'unit', 'costPerUnit', 'totalValue', 'location', 'project', 'lastUpdated'];
 
   const activeColumns = isDetailedView ? DETAILED_COLUMNS : SIMPLE_COLUMNS;
+
+  const onItemsUpdated = () => {
+    // Force a refresh of the items from localStorage
+    const updatedItems = JSON.parse(localStorage.getItem('inventoryItems') || '[]');
+    setItems(updatedItems);
+    setUpdateTrigger(prev => prev + 1);
+  };
+
+  // Convert string arrays to ItemWithSubcategories arrays for AddItemDialog
+  const suppliersWithSubcategories = useMemo(() => 
+    suppliers.map(name => ({ id: name, name, subcategories: [] })), 
+    [suppliers]
+  );
+
+  const projectsWithSubcategories = useMemo(() => 
+    projects.map(name => ({ id: name, name, subcategories: [] })), 
+    [projects]
+  );
+
+  // Handle redirect if coming from batch operation
+  useEffect(() => {
+    const shouldRedirect = sessionStorage.getItem('redirectToInventory');
+    if (shouldRedirect) {
+      sessionStorage.removeItem('redirectToInventory');
+      navigate('/inventory', { replace: true });
+    }
+  }, [navigate]);
+
+  // Force refresh when navigating from batch operations
+  useEffect(() => {
+    if (location.state?.forceRefresh) {
+      // Clear the state to prevent infinite refreshes
+      navigate('/inventory', { replace: true, state: {} });
+      // Force a re-render of the filtered items
+      setUpdateTrigger(prev => prev + 1);
+    }
+  }, [location.state?.forceRefresh, navigate]);
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-4 min-h-screen">
@@ -429,7 +457,9 @@ export default function InventoryPage() {
                 <SelectContent className="min-w-[200px]">
                   <SelectItem value="all">All Projects</SelectItem>
                   {projects.map(project => (
-                    <SelectItem key={project} value={project}>{project}</SelectItem>
+                    <SelectItem key={project.id} value={project.name}>
+                      {project.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -490,12 +520,20 @@ export default function InventoryPage() {
 
       {selectedItems.length > 0 && (
         <BatchOperations
-          selectedItems={selectedItems}
+          selectedItems={items.filter(item => selectedItems.includes(item.id))}
           onClearSelection={clearSelection}
           onItemsUpdated={() => {
-            // Refresh the items list if needed
-            const updatedItems = [...items];
+            // Clear selection and force a refresh of the filtered items
+            setIsAllSelected(false);
+            setSelectedItems([]);
+            // Force a re-render by updating the search query slightly
+            setSearchQuery(prev => prev + ' ');
+            setTimeout(() => setSearchQuery(prev => prev.trim()), 0);
+          }}
+          onDelete={(itemsToDelete) => {
+            const updatedItems = items.filter(item => !itemsToDelete.some(i => i.id === item.id));
             setItems(updatedItems);
+            clearSelection();
           }}
         />
       )}
@@ -570,21 +608,24 @@ export default function InventoryPage() {
         locations={locations}
         suppliers={suppliers}
         projects={projects}
-        selectedTemplate={location.state?.template}
+        existingItems={items}
+        selectedTemplate={template}
       />
 
       {selectedItem && (
         <>
           <EditItemDialog
-            item={selectedItem}
+            item={selectedItem!}
             isOpen={isEditDialogOpen}
             onClose={() => setIsEditDialogOpen(false)}
             onSave={handleSaveEdit}
-            categories={flattenedCategories}
+            categories={categories}
             units={units}
             locations={locations}
             suppliers={suppliers}
             projects={projects}
+            cabinets={[]}
+            existingItems={items}
           />
 
           <DuplicateItemDialog

@@ -55,8 +55,8 @@ export const STORAGE_KEYS = {
   USERS: 'users',
 };
 
-interface Settings {
-  categories: ItemWithSubcategories[];
+export interface Settings {
+  categories: CategoryNode[];
   units: ItemWithSubcategories[];
   locations: ItemWithSubcategories[];
   suppliers: ItemWithSubcategories[];

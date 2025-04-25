@@ -33,12 +33,9 @@ export function TemplatesPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Load settings for AddItemDialog
-  const categories = getSettings('CATEGORIES');
-  const units = getSettings('UNITS');
-  const locations = getSettings('LOCATIONS');
-  const suppliers = getSettings('SUPPLIERS');
-  const projects = getSettings('PROJECTS');
+  // Load settings
+  const settings = getSettings();
+  const { categories, units, locations, suppliers, projects } = settings;
 
   // Load templates on component mount
   useEffect(() => {
@@ -210,21 +207,28 @@ export function TemplatesPage() {
             template={selectedTemplate || undefined}
             onSubmit={handleSubmitTemplate}
             onCancel={() => setIsCreateDialogOpen(false)}
+            categories={categories}
+            units={units}
+            locations={locations}
+            suppliers={suppliers}
           />
         </DialogContent>
       </Dialog>
 
-      <AddItemDialog
-        open={isAddItemDialogOpen}
-        onOpenChange={setIsAddItemDialogOpen}
-        onSubmit={handleAddItem}
-        categories={categories}
-        units={units}
-        locations={locations}
-        suppliers={suppliers}
-        projects={projects}
-        selectedTemplate={selectedTemplate}
-      />
+      {/* Render AddItemDialog outside of other dialogs */}
+      {selectedTemplate && (
+        <AddItemDialog
+          open={isAddItemDialogOpen}
+          onOpenChange={setIsAddItemDialogOpen}
+          onSubmit={handleAddItem}
+          categories={categories}
+          units={units}
+          locations={locations}
+          suppliers={suppliers}
+          projects={projects}
+          selectedTemplate={selectedTemplate}
+        />
+      )}
     </div>
   );
 } 

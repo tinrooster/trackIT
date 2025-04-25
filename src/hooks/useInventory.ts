@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { InventoryItem, CategoryNode } from '@/types/inventory'
+import { InventoryItem, CategoryNode, ItemWithSubcategories, OrderStatus } from '@/types/inventory'
 import { getItems, saveItems, getSettings, saveSettings } from '@/lib/storageService' 
 import { DUMMY_INVENTORY_DATA } from '@/lib/dummyData'; 
 import { toast } from 'sonner'; 
+import { Settings } from '@/lib/storageService'
 
-type SettingsKey = 'CATEGORIES' | 'UNITS' | 'LOCATIONS' | 'SUPPLIERS' | 'PROJECTS';
-const SETTINGS_KEYS: SettingsKey[] = ['CATEGORIES', 'UNITS', 'LOCATIONS', 'SUPPLIERS', 'PROJECTS'];
+type SettingsKey = keyof Settings;
+const SETTINGS_KEYS: SettingsKey[] = ['categories', 'units', 'locations', 'suppliers', 'projects'];
 type ItemField = 'category' | 'unit' | 'location' | 'supplier' | 'project';
 
 export function useInventory() {
@@ -15,10 +16,10 @@ export function useInventory() {
   const [loading, setLoading] = useState(true)
   
   const [categories, setCategories] = useState<CategoryNode[]>([]);
-  const [units, setUnits] = useState<string[]>([]);
-  const [locations, setLocations] = useState<string[]>([]);
-  const [suppliers, setSuppliers] = useState<string[]>([]);
-  const [projects, setProjects] = useState<string[]>([]);
+  const [units, setUnits] = useState<ItemWithSubcategories[]>([]);
+  const [locations, setLocations] = useState<ItemWithSubcategories[]>([]);
+  const [suppliers, setSuppliers] = useState<ItemWithSubcategories[]>([]);
+  const [projects, setProjects] = useState<ItemWithSubcategories[]>([]);
 
   // Load items and settings
   useEffect(() => {
@@ -41,11 +42,12 @@ export function useInventory() {
       setItems(loadedItems);
       
       // Load settings
-      setCategories(getSettings('CATEGORIES') as CategoryNode[]);
-      setUnits(getSettings('UNITS') as string[]);
-      setLocations(getSettings('LOCATIONS') as string[]);
-      setSuppliers(getSettings('SUPPLIERS') as string[]);
-      setProjects(getSettings('PROJECTS') as string[]);
+      const settings = getSettings();
+      setCategories(settings.categories);
+      setUnits(settings.units);
+      setLocations(settings.locations);
+      setSuppliers(settings.suppliers);
+      setProjects(settings.projects);
 
       // Load history
       const loadedHistory = localStorage.getItem('inventoryHistory');
@@ -68,6 +70,20 @@ export function useInventory() {
     }
   }, []); 
   
+  // Load settings
+  useEffect(() => {
+    try {
+      const settings = getSettings();
+      setCategories(settings.categories as CategoryNode[]);
+      setUnits(settings.units);
+      setLocations(settings.locations);
+      setSuppliers(settings.suppliers);
+      setProjects(settings.projects);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  }, []);
+  
   // Save items
   useEffect(() => { if (!loading) saveItems(items); }, [items, loading]);
   // Save history
@@ -86,38 +102,38 @@ export function useInventory() {
   // --- Settings Management & Reconciliation ---
   const updateSettingsList = useCallback((
     listKey: SettingsKey, 
-    newList: string[], 
+    newList: ItemWithSubcategories[], 
     reassignInfo?: { valueToRemove: string; reassignTo?: string } 
   ) => {
-    let listSetter: React.Dispatch<React.SetStateAction<string[]>>;
+    let listSetter: React.Dispatch<React.SetStateAction<ItemWithSubcategories[]>>;
     let itemField: ItemField;
     const itemFieldMap: Record<SettingsKey, ItemField> = {
-      CATEGORIES: 'category',
-      UNITS: 'unit',
-      LOCATIONS: 'location',
-      SUPPLIERS: 'supplier',
-      PROJECTS: 'project'
+      categories: 'category',
+      units: 'unit',
+      locations: 'location',
+      suppliers: 'supplier',
+      projects: 'project'
     };
     itemField = itemFieldMap[listKey];
 
     switch (listKey) {
-      case 'CATEGORIES':
-        listSetter = setCategories;
+      case 'categories':
+        listSetter = setCategories as React.Dispatch<React.SetStateAction<ItemWithSubcategories[]>>;
         break;
-      case 'UNITS':
+      case 'units':
         listSetter = setUnits;
         break;
-      case 'LOCATIONS':
+      case 'locations':
         listSetter = setLocations;
         break;
-      case 'SUPPLIERS':
+      case 'suppliers':
         listSetter = setSuppliers;
         break;
-      case 'PROJECTS':
+      case 'projects':
         listSetter = setProjects;
         break;
       default:
-        listSetter = setCategories; // Default case to avoid uninitialized variable
+        listSetter = setCategories as React.Dispatch<React.SetStateAction<ItemWithSubcategories[]>>;
         break;
     }
 
@@ -141,8 +157,10 @@ export function useInventory() {
     }
 
     listSetter(newList);
-    saveSettings(listKey, newList);
-    if (!reassignInfo) toast.success(`${listKey.toLowerCase()} list updated.`);
+    const settings = getSettings();
+    settings[listKey] = newList;
+    saveSettings(settings);
+    if (!reassignInfo) toast.success(`${listKey} list updated.`);
   }, [items]);
 
   // --- Inventory Item Management ---
@@ -166,23 +184,48 @@ export function useInventory() {
     return newItem;
   }, []);
   
-  const updateItem = useCallback((updatedItemData: InventoryItem): InventoryItem => {
-    let finalUpdatedItem: InventoryItem | null = null;
-    setItems(prevItems => 
-      prevItems.map(item => {
-        if (item.id === updatedItemData.id) {
-          finalUpdatedItem = { ...updatedItemData, lastUpdated: new Date() };
-          return finalUpdatedItem;
-        }
-        return item;
-      })
-    );
-    if (!finalUpdatedItem) throw new Error(`Item with ID ${updatedItemData.id} not found.`);
+  const updateItem = useCallback((updatedItemData: Partial<InventoryItem> & { id: string }): InventoryItem => {
+    // Get the existing item to merge with updates
+    const existingItem = items.find(item => item.id === updatedItemData.id);
+    if (!existingItem) {
+      throw new Error(`Item with ID ${updatedItemData.id} not found`);
+    }
+
+    // Create the updated item with proper type checking
+    const finalUpdatedItem = {
+      ...existingItem, // Start with existing item to ensure all required fields
+      ...updatedItemData, // Override with any provided updates
+      lastUpdated: new Date(),
+      // Ensure required fields are preserved
+      name: updatedItemData.name ?? existingItem.name,
+      category: updatedItemData.category ?? existingItem.category,
+      unit: updatedItemData.unit ?? existingItem.unit,
+      location: updatedItemData.location ?? existingItem.location,
+      quantity: updatedItemData.quantity ?? existingItem.quantity,
+      // Handle optional fields
+      orderStatus: updatedItemData.orderStatus ?? existingItem.orderStatus,
+      deliveryPercentage: updatedItemData.deliveryPercentage ?? existingItem.deliveryPercentage ?? 100
+    } as InventoryItem; // Assert the type since we know we have all required fields
+
+    setItems(prevItems => {
+      const newItems = prevItems.map(item => 
+        item.id === updatedItemData.id ? finalUpdatedItem : item
+      );
+      // Persist to localStorage
+      saveItems(newItems);
+      return newItems;
+    });
+
     return finalUpdatedItem;
-  }, []); 
+  }, [items]);
   
   const deleteItem = useCallback((itemId: string) => {
-    setItems(prevItems => prevItems.filter(item => item.id !== itemId));
+    setItems(prevItems => {
+      const newItems = prevItems.filter(item => item.id !== itemId);
+      // Persist to localStorage
+      saveItems(newItems);
+      return newItems;
+    });
   }, []);
   
   const adjustQuantity = useCallback((itemId: string, newQuantity: number, reason: string): InventoryItem | undefined => {
@@ -286,6 +329,14 @@ export function useInventory() {
     });
   }, [items]); // Depend on items to get the latest list for checking existence
   
+  // Save items whenever they change
+  useEffect(() => {
+    if (!loading) {
+      console.log('Saving items to localStorage:', items.length);
+      saveItems(items);
+    }
+  }, [items, loading]);
+
   return {
     items,
     setItems,

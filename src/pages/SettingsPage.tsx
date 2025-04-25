@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, GripVertical, AlertCircle, Download, Upload, Trash2, Pencil, UserPlus, Shield, Key } from 'lucide-react'
+import { Save, GripVertical, AlertCircle, Download, Upload, Trash2, Pencil, UserPlus, Shield, Key, Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -22,6 +22,7 @@ import { getPasswordError } from '@/utils/passwordUtils'
 import { EditableItemWithSubcategoriesList } from '@/components/EditableItemWithSubcategoriesList'
 import { CategoryTreeManager } from '@/components/CategoryTreeManager'
 import { v4 as uuidv4 } from 'uuid'
+import CabinetManagement from './CabinetManagement'
 
 // Sortable item component
 function SortableItem({ 
@@ -452,8 +453,10 @@ export default function SettingsPage() {
     // Get tab from URL query parameter
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
-    // If tab is 'users', set mainTab to 'users', otherwise default to 'lists'
-    return tab === 'users' ? 'users' : 'lists';
+    // If tab is 'users', set mainTab to 'users', if 'test' set to 'test', otherwise default to 'lists'
+    if (tab === 'users') return 'users';
+    if (tab === 'test') return 'test';
+    return 'lists';
   });
   
   const [activeTab, setActiveTab] = useState(() => {
@@ -490,6 +493,7 @@ export default function SettingsPage() {
   const [users, setUsers] = useState<User[]>([])
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [resettingUser, setResettingUser] = useState<User | null>(null)
+  const [isCameraDialogOpen, setIsCameraDialogOpen] = useState(false);
 
   const listMap: Record<SettingsKey, ListInfo> = {
     categories: { 
@@ -911,25 +915,25 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Settings</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={exportConfiguration}>
-            <Download className="mr-2 h-4 w-4" />
-            Export Config
+        <div className="flex space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setIsCameraDialogOpen(true)}
+            className="flex items-center"
+          >
+            <Camera className="mr-2 h-4 w-4" />
+            Camera Settings
           </Button>
-          <Button variant="outline" onClick={() => document.getElementById('import-config')?.click()}>
-            <Upload className="mr-2 h-4 w-4" />
-            Import Config
+          <Button 
+            onClick={saveAllSettings}
+            className="flex items-center"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            Save Settings
           </Button>
-          <input
-            id="import-config"
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={importConfiguration}
-          />
         </div>
       </div>
 
@@ -937,107 +941,95 @@ export default function SettingsPage() {
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Important</AlertTitle>
         <AlertDescription>
-          Changes to categories, units, and other settings may affect existing inventory items.
+          Changes to categories, units, and other settings may affect existing inventory items. 
           When removing a value that's in use, you'll be prompted to either remove it from items or replace it.
+          Consider exporting your configuration before making significant changes.
         </AlertDescription>
       </Alert>
 
-      <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="lists">List Management</TabsTrigger>
+      <div className="flex justify-end space-x-2 mb-4">
+        <Button variant="outline" onClick={exportConfiguration} className="flex items-center">
+          <Download className="mr-2 h-4 w-4" />
+          Export Config
+        </Button>
+        <div className="relative">
+          <input
+            type="file"
+            id="import-config"
+            className="hidden"
+            accept=".json"
+            onChange={importConfiguration}
+          />
+          <Button variant="outline" onClick={() => document.getElementById('import-config')?.click()} className="flex items-center">
+            <Upload className="mr-2 h-4 w-4" />
+            Import Config
+          </Button>
+        </div>
+      </div>
+
+      <Tabs defaultValue="list-management">
+        <TabsList className="w-full border-b">
+          <TabsTrigger value="list-management">List Management</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="cabinets">Storage Cabinet Management</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="lists" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Manage Lists</CardTitle>
-              <CardDescription>
-                Edit categories, locations, units, and other lists used in the inventory
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="categories" className="w-full">
-                <TabsList className="grid grid-cols-5 mb-4">
-                  {Object.entries(listMap).map(([key, info]) => (
-                    <TabsTrigger key={key} value={key}>
-                      {info.title}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-                
-                <TabsContent value="categories">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>{listMap.categories.title}</CardTitle>
-                      <CardDescription>{listMap.categories.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <EditableItemWithSubcategoriesList 
-                        items={settings.categories}
-                        setItems={(newItems) => {
-                          const newItemsArray = Array.isArray(newItems) ? newItems : 
-                            typeof newItems === 'function' ? (newItems as (prev: ItemWithSubcategories[]) => ItemWithSubcategories[])(settings.categories) : [];
-                          updateSettingsList('categories', newItemsArray);
-                        }}
-                        title={listMap.categories.title}
-                        description={listMap.categories.description}
-                      />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                
-                {['units', 'locations', 'suppliers', 'projects'].map((key) => (
-                  <TabsContent key={key} value={key}>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>{listMap[key as SettingsKey].title}</CardTitle>
-                        <CardDescription>{listMap[key as SettingsKey].description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <EditableItemWithSubcategoriesList 
-                          items={settings[key as keyof Omit<SettingsState, 'categories'>]}
-                          setItems={(newItems) => {
-                            const newItemsArray = Array.isArray(newItems) ? newItems : 
-                              typeof newItems === 'function' ? (newItems as (prev: ItemWithSubcategories[]) => ItemWithSubcategories[])(settings[key as keyof Omit<SettingsState, 'categories'>]) : [];
-                            updateSettingsList(key as SettingsKey, newItemsArray);
-                          }}
-                          title={listMap[key as SettingsKey].title}
-                          description={listMap[key as SettingsKey].description}
-                        />
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </CardContent>
-          </Card>
+        <TabsContent value="list-management">
+          <Tabs defaultValue="categories">
+            <TabsList className="grid w-full grid-cols-5 mb-6">
+              <TabsTrigger value="categories">Categories</TabsTrigger>
+              <TabsTrigger value="units">Units</TabsTrigger>
+              <TabsTrigger value="locations">Locations</TabsTrigger>
+              <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+              <TabsTrigger value="projects">Projects</TabsTrigger>
+            </TabsList>
+            {Object.entries(listMap).map(([key, info]) => (
+              <TabsContent key={key} value={key}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{info.title}</CardTitle>
+                    <CardDescription>{info.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <EditableItemWithSubcategoriesList
+                      items={info.list}
+                      setItems={(newItems) => updateSettingsList(key as SettingsKey, newItems)}
+                      title={info.title}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            ))}
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="users">
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>User Management</CardTitle>
-                  <CardDescription>Manage user accounts and permissions</CardDescription>
-                </div>
-                <Button onClick={() => setShowAddUserDialog(true)}>
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  Add User
-                </Button>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle>User Management</CardTitle>
+              <Button onClick={() => setShowAddUserDialog(true)} className="flex items-center">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add User
+              </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {renderUsersList()}
+              {renderUsersList()}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                {users.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No users found. Add some users to get started.
-                  </div>
-                )}
-              </div>
+        <TabsContent value="cabinets">
+          <Card>
+            <CardHeader>
+              <CardTitle>Storage Cabinet Management</CardTitle>
+              <CardDescription>
+                Manage storage cabinets and their locations. Cabinets are assigned to existing locations from the Location Management list.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CabinetManagement 
+                locations={settings.locations.map(loc => loc.name)} 
+              />
             </CardContent>
           </Card>
         </TabsContent>
