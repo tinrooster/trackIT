@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,19 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { SettingsService, defaultSettingsSchema, DefaultSettings } from "@/lib/settingsService";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LogViewer } from './LogViewer';
+import { getRecentLogs } from '@/lib/logging';
 
 interface SettingsPageProps {
-  activeTab?: "general" | "defaults" | "qr";
+  activeTab?: "general" | "defaults" | "qr" | "logs";
+}
+
+interface LogEntry {
+  timestamp: string;
+  action: string;
+  details: Record<string, any>;
+  status: 'success' | 'error';
 }
 
 export function SettingsPage({ activeTab = "general" }: SettingsPageProps) {
@@ -34,13 +44,30 @@ export function SettingsPage({ activeTab = "general" }: SettingsPageProps) {
     defaultValues: SettingsService.loadDefaultSettings(),
   });
 
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+
+  useEffect(() => {
+    if (activeTab === "logs") {
+      const fetchLogs = async () => {
+        const recentLogs = await getRecentLogs(100);
+        setLogs(recentLogs);
+      };
+
+      fetchLogs();
+      // Refresh logs every 30 seconds
+      const interval = setInterval(fetchLogs, 30000);
+
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
   const onSubmit = async (data: DefaultSettings) => {
     try {
-      SettingsService.saveDefaultSettings(data);
+      await SettingsService.saveDefaultSettings(data);
       toast.success("Settings saved successfully");
     } catch (error) {
+      console.error("Failed to save settings:", error);
       toast.error("Failed to save settings");
-      console.error(error);
     }
   };
 
@@ -246,12 +273,25 @@ export function SettingsPage({ activeTab = "general" }: SettingsPageProps) {
     </Card>
   );
 
+  const renderLogs = () => (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold">System Logs</h2>
+        <p className="text-sm text-muted-foreground">
+          View recent system activity and troubleshoot issues
+        </p>
+      </div>
+      <LogViewer logs={logs} />
+    </div>
+  );
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {activeTab === "general" && renderGeneralSettings()}
         {activeTab === "defaults" && renderDefaultValues()}
         {activeTab === "qr" && renderQRSettings()}
+        {activeTab === "logs" && renderLogs()}
         
         <div className="flex justify-end">
           <Button type="submit">Save Settings</Button>

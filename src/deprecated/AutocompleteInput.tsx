@@ -1,7 +1,12 @@
 import * as React from 'react';
-import { Input } from './ui/input';
+import { Input } from '../components/ui/input';
 import { cn } from "@/lib/utils";
 
+/**
+ * @deprecated This component allows browser native autocomplete
+ * Please use the updated AutocompleteInput component in src/components/AutocompleteInput.tsx
+ * which has the autoComplete="off" attribute to prevent browser native autocomplete
+ */
 interface AutocompleteInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   suggestions: string[];
   onSuggestionSelected?: (suggestion: string) => void;
@@ -24,8 +29,6 @@ export function AutocompleteInput({
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const [input, setInput] = React.useState(props.value?.toString() || '');
   const wrapperRef = React.useRef<HTMLDivElement>(null);
-
-  console.log('AutocompleteInput props:', { suggestions, value: props.value, input });
 
   // Update input when value prop changes
   React.useEffect(() => {
@@ -105,7 +108,8 @@ export function AutocompleteInput({
           }
         }}
         className={cn("w-full", className)}
-        autoComplete="off"
+        // This component allows browser native autocomplete
+        // Missing autoComplete="off" which would prevent it
       />
       {showSuggestions && filteredSuggestions.length > 0 && (
         <ul className="absolute z-[100] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">

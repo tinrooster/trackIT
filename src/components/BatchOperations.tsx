@@ -6,11 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useInventory } from '@/hooks/useInventory';
 import { InventoryItem, CategoryNode, ItemWithSubcategories } from '@/types/inventory';
+import { Cabinet } from '@/types/cabinets';
 import { toast } from 'sonner';
 import { Trash2, Edit2 } from 'lucide-react';
 import { getItems } from '@/lib/storageService';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { logger } from '@/utils/logger';
+import { DebugLogsButton } from '@/components/DebugLogsButton'
+import { logAction } from '@/lib/logging'
 
 // Helper function to flatten categories
 function flattenCategories(categories: CategoryNode[]): string[] {
@@ -33,6 +37,23 @@ function flattenCategories(categories: CategoryNode[]): string[] {
   return flattened.sort();
 }
 
+// Add this function near the top with other helper functions
+function flattenLocations(locations: ItemWithSubcategories[]): string[] {
+  const flattened: string[] = [];
+  
+  const traverse = (node: ItemWithSubcategories, parentPath: string = '') => {
+    const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+    flattened.push(currentPath);
+    
+    if (node.children) {
+      node.children.forEach(child => traverse(child, currentPath));
+    }
+  };
+
+  locations.forEach(location => traverse(location));
+  return flattened.sort();
+}
+
 interface FlattenedLocation {
   id: string;
   name: string;
@@ -47,33 +68,85 @@ interface BatchOperationsProps {
 
 interface BatchEditValues {
   quantity?: string;
-  costPerUnit?: string;
-  price?: string;
   category?: string;
+  subcategory?: string;
   location?: string;
+  cabinet?: string;
   project?: string;
+  unitSubcategory?: string;
 }
 
 export default function BatchOperations({ selectedItems, onClearSelection, onItemsUpdated, onDelete }: BatchOperationsProps) {
-  const { items, updateItem, deleteItem, categories, units, locations, projects, setItems } = useInventory();
+  const { items, updateItem, deleteItem, categories, units, locations, projects, setItems, cabinets } = useInventory();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isBatchEditOpen, setIsBatchEditOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [batchEditValues, setBatchEditValues] = React.useState<BatchEditValues>({});
   const [isUpdating, setIsUpdating] = React.useState(false);
+  const [availableSubcategories, setAvailableSubcategories] = React.useState<string[]>([]);
+  const [availableCabinets, setAvailableCabinets] = React.useState<Cabinet[]>([]);
 
   // Get flattened category names
   const flattenedCategories = React.useMemo(() => flattenCategories(categories || []), [categories]);
 
-  // Get flattened location names
-  const flattenedLocations = React.useMemo(() => 
-    Array.isArray(locations) ? locations.map(loc => ({
-      id: loc.id || '', 
-      name: loc.name || ''
-    } as FlattenedLocation)) : [], 
-    [locations]
-  );
+  // Get flattened location paths
+  const flattenedLocationPaths = React.useMemo(() => flattenLocations(locations || []), [locations]);
+
+  // Update available subcategories when category changes
+  React.useEffect(() => {
+    if (batchEditValues.category && batchEditValues.category !== 'nochange') {
+      // Find the selected category node
+      const categoryParts = batchEditValues.category.split('/');
+      const categoryName = categoryParts[categoryParts.length - 1];
+      
+      let foundCategory: CategoryNode | undefined;
+      
+      const findCategory = (nodes: CategoryNode[] | undefined, path: string[] = []): CategoryNode | undefined => {
+        if (!nodes) return undefined;
+        
+        for (const node of nodes) {
+          const currentPath = [...path, node.name];
+          if (currentPath.join('/') === batchEditValues.category) {
+            return node;
+          }
+          
+          const found = findCategory(node.children, currentPath);
+          if (found) return found;
+        }
+        
+        return undefined;
+      };
+      
+      foundCategory = findCategory(categories);
+      
+      // Set available subcategories
+      if (foundCategory && foundCategory.children && foundCategory.children.length > 0) {
+        setAvailableSubcategories(foundCategory.children.map(child => child.name));
+      } else {
+        setAvailableSubcategories([]);
+      }
+    } else {
+      setAvailableSubcategories([]);
+    }
+  }, [batchEditValues.category, categories]);
+
+  // Update available cabinets when location changes
+  React.useEffect(() => {
+    if (batchEditValues.location && batchEditValues.location !== 'nochange' && cabinets) {
+      // Get the base location name (last part of the path)
+      const locationName = batchEditValues.location.split('/').pop() || '';
+      logger.debug('Looking for cabinets for location', { locationName });
+      logger.debug('Available cabinets', { cabinets });
+      
+      // Filter cabinets directly by locationId matching the location name
+      const locationCabinets = cabinets.filter(cabinet => cabinet.locationId === locationName);
+      logger.debug('Found cabinets for location', { locationCabinets });
+      setAvailableCabinets(locationCabinets);
+    } else {
+      setAvailableCabinets([]);
+    }
+  }, [batchEditValues.location, cabinets]);
 
   // Reset batch edit values when dialog opens/closes
   React.useEffect(() => {
@@ -111,7 +184,9 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
       
       // Show success message
       toast.success(`Deleted ${selectedItems.length} items`);
+      logger.info('Successfully deleted items', { count: selectedItems.length });
     } catch (error) {
+      logger.error('Error in batch delete', error);
       console.error('Error in batch delete:', error);
       toast.error('Failed to delete items');
     }
@@ -119,16 +194,14 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
 
   // Batch edit selected items
   const handleBatchEdit = async () => {
-    if (!selectedItems.length) {
-      toast.error("No items selected for batch edit");
-      return;
-    }
-
     setIsUpdating(true);
-
     try {
       // Get current items from storage
       const currentItems = getItems();
+      logger.debug('Starting batch edit', { 
+        selectedCount: selectedItems.length,
+        batchEditValues 
+      });
       
       // Track successful updates
       let successCount = 0;
@@ -144,24 +217,28 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
         if (batchEditValues.quantity !== undefined) {
           updates.quantity = Number(batchEditValues.quantity);
         }
-        if (batchEditValues.costPerUnit !== undefined) {
-          updates.costPerUnit = Number(batchEditValues.costPerUnit);
-        }
-        if (batchEditValues.price !== undefined) {
-          updates.price = Number(batchEditValues.price);
-        }
         if (batchEditValues.category && batchEditValues.category !== 'nochange') {
           updates.category = batchEditValues.category;
+        }
+        if (batchEditValues.subcategory && batchEditValues.subcategory !== 'nochange') {
+          updates.subcategory = batchEditValues.subcategory;
         }
         if (batchEditValues.location && batchEditValues.location !== 'nochange') {
           updates.location = batchEditValues.location;
         }
+        if (batchEditValues.cabinet && batchEditValues.cabinet !== 'nochange') {
+          updates.cabinet = batchEditValues.cabinet;
+        }
         if (batchEditValues.project && batchEditValues.project !== 'nochange') {
           updates.project = batchEditValues.project;
+        }
+        if (batchEditValues.unitSubcategory && batchEditValues.unitSubcategory !== 'nochange') {
+          updates.unitSubcategory = batchEditValues.unitSubcategory;
         }
 
         if (Object.keys(updates).length > 0) {
           successCount++;
+          logger.debug('Updating item', { itemId: item.id, updates });
           return { 
             ...item, 
             ...updates, 
@@ -174,8 +251,6 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
 
       // Save to localStorage
       localStorage.setItem('inventoryItems', JSON.stringify(updatedItems));
-      
-      // Update global state immediately
       setItems(updatedItems);
       
       if (successCount > 0) {
@@ -189,11 +264,13 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
         
         // Show success message
         toast.success(`Successfully updated ${successCount} item${successCount !== 1 ? 's' : ''}`);
+        logger.info('Successfully updated items', { count: successCount });
       }
 
     } catch (error) {
+      logger.error('Error in batch edit', error);
       console.error('Error in batch edit:', error);
-      toast.error('An error occurred during batch edit');
+      toast.error('Failed to update items');
     } finally {
       setIsUpdating(false);
     }
@@ -201,27 +278,52 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
 
   // Update state handlers to store values as strings
   const handleQuantityChange = (value: string) => {
-    setBatchEditValues((prev: BatchEditValues) => value ? { ...prev, quantity: value } : { ...prev, quantity: undefined });
-  };
-
-  const handleCostPerUnitChange = (value: string) => {
-    setBatchEditValues((prev: BatchEditValues) => value ? { ...prev, costPerUnit: value } : { ...prev, costPerUnit: undefined });
-  };
-
-  const handlePriceChange = (value: string) => {
-    setBatchEditValues((prev: BatchEditValues) => value ? { ...prev, price: value } : { ...prev, price: undefined });
+    setBatchEditValues(prev => ({ ...prev, quantity: value || undefined }));
   };
 
   const handleCategoryChange = (value: string) => {
-    setBatchEditValues((prev: BatchEditValues) => value !== 'nochange' ? { ...prev, category: value } : { ...prev, category: undefined });
+    setBatchEditValues(prev => ({
+      ...prev,
+      category: value !== 'nochange' ? value : undefined,
+      // Clear subcategory when category changes
+      subcategory: undefined
+    }));
   };
 
   const handleLocationChange = (value: string) => {
-    setBatchEditValues((prev: BatchEditValues) => value !== 'nochange' ? { ...prev, location: value } : { ...prev, location: undefined });
+    setBatchEditValues(prev => ({
+      ...prev,
+      location: value !== 'nochange' ? value : undefined,
+      subcategory: undefined // Clear subcategory when location changes
+    }));
   };
 
   const handleProjectChange = (value: string) => {
-    setBatchEditValues((prev: BatchEditValues) => value !== 'nochange' ? { ...prev, project: value } : { ...prev, project: undefined });
+    setBatchEditValues(prev => ({
+      ...prev,
+      project: value !== 'nochange' ? value : undefined
+    }));
+  };
+
+  const handleSubcategoryChange = (value: string) => {
+    setBatchEditValues(prev => ({
+      ...prev,
+      subcategory: value !== 'nochange' ? value : undefined
+    }));
+  };
+
+  const handleCabinetChange = (value: string) => {
+    setBatchEditValues(prev => ({
+      ...prev,
+      cabinet: value !== 'nochange' ? value : undefined
+    }));
+  };
+
+  const handleUnitSubcategoryChange = (value: string) => {
+    setBatchEditValues(prev => ({
+      ...prev,
+      unitSubcategory: value !== 'nochange' ? value : undefined
+    }));
   };
 
   return (
@@ -300,6 +402,27 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
               </div>
             </div>
 
+            {availableSubcategories.length > 0 && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="subcategory" className="text-right">Subcategory</Label>
+                <div className="col-span-3">
+                  <Select value={batchEditValues.subcategory || "nochange"} onValueChange={handleSubcategoryChange}>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {batchEditValues.subcategory || "No change"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nochange">No change</SelectItem>
+                      {availableSubcategories.map((subcategory: string) => (
+                        <SelectItem key={subcategory} value={subcategory}>{subcategory}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="location" className="text-right">Location</Label>
               <div className="col-span-3">
@@ -311,13 +434,34 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="nochange">No change</SelectItem>
-                    {flattenedLocations.map(location => (
-                      <SelectItem key={location.id} value={location.name}>{location.name}</SelectItem>
+                    {flattenedLocationPaths.map((location: string) => (
+                      <SelectItem key={location} value={location}>{location}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
+            {availableCabinets.length > 0 && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="cabinet" className="text-right">Cabinet</Label>
+                <div className="col-span-3">
+                  <Select value={batchEditValues.cabinet || "nochange"} onValueChange={handleCabinetChange}>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {batchEditValues.cabinet || "No change"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nochange">No change</SelectItem>
+                      {availableCabinets.map(cabinet => (
+                        <SelectItem key={cabinet.id} value={cabinet.name}>{cabinet.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="project" className="text-right">Project</Label>
@@ -352,36 +496,6 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
                 />
               </div>
             </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="costPerUnit" className="text-right">Cost Per Unit ($)</Label>
-              <div className="col-span-3">
-                <Input
-                  id="costPerUnit"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Leave blank for no change"
-                  value={batchEditValues.costPerUnit || ''}
-                  onChange={(e) => handleCostPerUnitChange(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="price" className="text-right">Price ($)</Label>
-              <div className="col-span-3">
-                <Input
-                  id="price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Leave blank for no change"
-                  value={batchEditValues.price || ''}
-                  onChange={(e) => handlePriceChange(e.target.value)}
-                />
-              </div>
-            </div>
           </div>
 
           <DialogFooter>
@@ -399,6 +513,28 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
               )}
             </Button>
           </DialogFooter>
+          <DebugLogsButton 
+            onDownload={async () => {
+              try {
+                // Log the action
+                await logAction({
+                  action: 'DOWNLOAD_LOGS',
+                  details: {
+                    component: 'batch-operations',
+                    timestamp: new Date().toISOString()
+                  },
+                  status: 'success'
+                });
+
+                // Use our logger to save the logs
+                await logger.downloadLogs('batch-operations');
+              } catch (error) {
+                console.error('Error downloading logs:', error);
+                toast.error('Failed to download logs');
+              }
+            }}
+            context="batch-operations"
+          />
         </DialogContent>
       </Dialog>
     </div>

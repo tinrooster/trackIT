@@ -7,7 +7,12 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from 'sonner'
-import { Pencil, Trash2 } from "lucide-react"
+import { Pencil, Trash2, GripVertical } from "lucide-react"
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { QRCodeManager } from "@/components/cabinets/QRCodeManager";
+import { CheckoutHistory } from "@/components/cabinets/CheckoutHistory";
 
 interface Cabinet {
   id: string;
@@ -17,20 +22,22 @@ interface Cabinet {
   isSecure: boolean;
   allowedCategories: string[];
   qrCode: string;
+  notes?: string;
 }
 
 interface CabinetCheckout {
-  cabinetId: string;
+  id: string;
   itemId: string;
+  itemName: string;
   quantity: number;
   timestamp: string;
   userId: string;
-  status: 'checked-out' | 'returned';
+  userName: string;
+  type: 'check-in' | 'check-out';
 }
 
 interface DefaultSettings {
   defaultLocation: string;
-  defaultUnit: string;
   enableQRTracking: boolean;
   requireCheckoutForSecureCabinets: boolean;
 }
@@ -44,17 +51,59 @@ interface CabinetManagementProps {
   locations: string[];
 }
 
+interface SortableCabinetProps {
+  cabinet: Cabinet;
+  onEdit: (cabinet: Cabinet) => void;
+  onDelete: (id: string) => void;
+}
+
 const generateQRCode = (cabinetId: string): string => {
   // Generate a simple unique identifier instead of QR code
   return `cabinet-${cabinetId}-${Date.now()}`;
 };
+
+// Add SortableCabinet component
+function SortableCabinet({ cabinet, onEdit, onDelete }: SortableCabinetProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: cabinet.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 bg-white rounded-lg shadow mb-2">
+      <div {...attributes} {...listeners} className="cursor-move">
+        <GripVertical className="h-5 w-5 text-gray-400" />
+      </div>
+      <div className="flex-1">
+        <h3 className="font-medium">{cabinet.name}</h3>
+        <p className="text-sm text-gray-500">{cabinet.description}</p>
+        {cabinet.notes && <p className="text-sm text-gray-400 mt-1">{cabinet.notes}</p>}
+      </div>
+      <div className="flex gap-2">
+        <Button variant="ghost" size="icon" onClick={() => onEdit(cabinet)}>
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => onDelete(cabinet.id)}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function CabinetManagement({ locations }: CabinetManagementProps) {
   const [activeTab, setActiveTab] = React.useState('cabinets')
   const [cabinets, setCabinets] = React.useState<Cabinet[]>([])
   const [settings, setSettings] = React.useState<DefaultSettings>({
     defaultLocation: locations[0] || '',
-    defaultUnit: 'pieces',
     enableQRTracking: true,
     requireCheckoutForSecureCabinets: true
   })
@@ -67,10 +116,20 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
     description: '',
     isSecure: false,
     allowedCategories: [],
-    qrCode: ''
+    qrCode: '',
+    notes: ''
   })
 
   const [editingCabinet, setEditingCabinet] = React.useState<Cabinet | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const [checkoutHistory, setCheckoutHistory] = React.useState<Record<string, CabinetCheckout[]>>({});
 
   // Load cabinets from localStorage
   React.useEffect(() => {
@@ -144,6 +203,7 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
       id: formattedId,
       name: cabinetForm.name.trim(),
       description: cabinetForm.description.trim(),
+      notes: cabinetForm.notes?.trim(),
       qrCode: generateQRCode(formattedId)
     };
 
@@ -167,7 +227,8 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
       description: '',
       isSecure: false,
       allowedCategories: [],
-      qrCode: ''
+      qrCode: '',
+      notes: ''
     });
     
     setEditingCabinet(null);
@@ -187,6 +248,73 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
     setCabinetForm(cabinet);
   };
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (active.id !== over?.id && over) {
+      setCabinets((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        saveCabinets(newOrder);
+        return newOrder;
+      });
+    }
+  };
+
+  const handleCheckIn = async (cabinetId: string, itemId: string, quantity: number) => {
+    try {
+      // In a real app, you would make an API call here
+      const newCheckout: CabinetCheckout = {
+        id: Date.now().toString(),
+        itemId,
+        itemName: `Item ${itemId}`, // In real app, get from item database
+        quantity,
+        timestamp: new Date().toISOString(),
+        userId: 'current-user', // In real app, get from auth context
+        userName: 'Current User', // In real app, get from auth context
+        type: 'check-in'
+      };
+
+      setCheckoutHistory(prev => ({
+        ...prev,
+        [cabinetId]: [...(prev[cabinetId] || []), newCheckout]
+      }));
+
+      toast.success('Item checked in successfully');
+    } catch (error) {
+      console.error('Error checking in item:', error);
+      toast.error('Failed to check in item');
+    }
+  };
+
+  const handleCheckOut = async (cabinetId: string, itemId: string, quantity: number) => {
+    try {
+      // In a real app, you would make an API call here
+      const newCheckout: CabinetCheckout = {
+        id: Date.now().toString(),
+        itemId,
+        itemName: `Item ${itemId}`, // In real app, get from item database
+        quantity,
+        timestamp: new Date().toISOString(),
+        userId: 'current-user', // In real app, get from auth context
+        userName: 'Current User', // In real app, get from auth context
+        type: 'check-out'
+      };
+
+      setCheckoutHistory(prev => ({
+        ...prev,
+        [cabinetId]: [...(prev[cabinetId] || []), newCheckout]
+      }));
+
+      toast.success('Item checked out successfully');
+    } catch (error) {
+      console.error('Error checking out item:', error);
+      toast.error('Failed to check out item');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -198,154 +326,146 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
         <TabsContent value="cabinets" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>{editingCabinet ? 'Edit Cabinet' : 'Add New Cabinet'}</CardTitle>
-              <CardDescription>
-                {editingCabinet 
-                  ? 'Edit cabinet details and security settings' 
-                  : 'Create a new cabinet with security settings and category restrictions'}
-              </CardDescription>
+              <CardTitle>Add New Cabinet</CardTitle>
+              <CardDescription>Create a new storage cabinet for inventory management.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Cabinet ID (max 8 chars)*</Label>
-                    <Input 
-                      value={cabinetForm.id}
-                      onChange={(e) => {
-                        const value = e.target.value.toUpperCase();
-                        if (value.length <= 8) {
+            <CardContent>
+              <form className="space-y-6" autoComplete="off">
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="cabinet-id">Cabinet ID</Label>
+                      <Input
+                        id="cabinet-id"
+                        name="cabinet-id"
+                        placeholder="Enter cabinet ID"
+                        className="h-12 text-lg"
+                        value={cabinetForm.id}
+                        maxLength={8}
+                        autoComplete="off"
+                        onChange={(e) => {
+                          const value = e.target.value.toUpperCase();
                           setCabinetForm({...cabinetForm, id: value});
-                        }
-                      }}
-                      placeholder="E1"
-                      maxLength={8}
-                      className="font-mono w-[8ch]"
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Name</Label>
+                      <Input
+                        id="name"
+                        name="cabinet-name"
+                        placeholder="Enter cabinet name"
+                        className="h-12 text-lg"
+                        value={cabinetForm.name}
+                        maxLength={12}
+                        autoComplete="off"
+                        onChange={(e) => setCabinetForm({...cabinetForm, name: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Input
+                      id="description"
+                      name="cabinet-description"
+                      placeholder="Enter cabinet description"
+                      className="h-12 text-lg"
+                      value={cabinetForm.description}
+                      autoComplete="off"
+                      onChange={(e) => setCabinetForm({...cabinetForm, description: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Name*</Label>
-                    <Input 
-                      value={cabinetForm.name}
-                      onChange={(e) => setCabinetForm({...cabinetForm, name: e.target.value})}
-                      placeholder="Cabinet Name"
+                    <Label htmlFor="notes">Notes</Label>
+                    <textarea
+                      id="notes"
+                      name="cabinet-notes"
+                      placeholder="Enter additional notes about this cabinet"
+                      className="w-full min-h-[100px] px-3 py-2 text-lg rounded-md border border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={cabinetForm.notes || ''}
+                      autoComplete="off"
+                      onChange={(e) => setCabinetForm({...cabinetForm, notes: e.target.value})}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Location</Label>
+                    <Select
+                      value={cabinetForm.locationId}
+                      onValueChange={(value) => setCabinetForm({...cabinetForm, locationId: value})}
+                    >
+                      <SelectTrigger id="location" name="cabinet-location" className="h-12 text-lg">
+                        <SelectValue placeholder="Select a location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locations.map((location) => (
+                          <SelectItem key={location} value={location}>
+                            {location}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="secure"
+                      name="cabinet-secure"
+                      checked={cabinetForm.isSecure}
+                      onCheckedChange={(checked) => setCabinetForm({...cabinetForm, isSecure: checked})}
+                    />
+                    <Label htmlFor="secure">Secure Cabinet</Label>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Input 
-                    value={cabinetForm.description}
-                    onChange={(e) => setCabinetForm({...cabinetForm, description: e.target.value})}
-                    placeholder="Cabinet description"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Location*</Label>
-                  <Select 
-                    value={cabinetForm.locationId}
-                    onValueChange={(value) => setCabinetForm({...cabinetForm, locationId: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map(location => (
-                        <SelectItem key={location} value={location}>
-                          {location}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch 
-                    checked={cabinetForm.isSecure}
-                    onCheckedChange={(checked) => setCabinetForm({...cabinetForm, isSecure: checked})}
-                  />
-                  <Label>Secure Cabinet</Label>
-                </div>
-                <Button 
-                  type="button"
-                  onClick={() => {
-                    console.log('Save button clicked manually');
-                    handleSaveCabinet();
-                    setEditingCabinet(null);
-                  }}
-                  className="w-full"
-                >
-                  {editingCabinet ? 'Update Cabinet' : 'Save Cabinet'}
+                <Button type="button" onClick={handleSaveCabinet}>
+                  {editingCabinet ? 'Update Cabinet' : 'Add Cabinet'}
                 </Button>
-                {editingCabinet && (
-                  <Button 
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setEditingCabinet(null);
-                      setCabinetForm({
-                        id: '',
-                        name: '',
-                        locationId: locations[0] || '',
-                        description: '',
-                        isSecure: false,
-                        allowedCategories: [],
-                        qrCode: ''
-                      });
-                    }}
-                    className="w-full mt-2"
-                  >
-                    Cancel Edit
-                  </Button>
-                )}
-              </div>
+              </form>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>Existing Cabinets</CardTitle>
-              <CardDescription>Manage your cabinets</CardDescription>
+              <CardDescription>Manage and reorder your storage cabinets.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {cabinets.map((cabinet) => (
-                  <div key={cabinet.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium">{cabinet.name}</h3>
-                          <p className="text-sm text-muted-foreground">{cabinet.description}</p>
-                          <p className="text-sm">Location: {cabinet.locationId}</p>
-                          {cabinet.isSecure && (
-                            <p className="text-sm text-yellow-600">Secure Cabinet</p>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditCabinet(cabinet)}
-                            className="h-8 w-8"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteCabinet(cabinet.id)}
-                            className="h-8 w-8 text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={cabinets.map(c => c.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {cabinets.map((cabinet) => (
+                    <div key={cabinet.id} className="space-y-4">
+                      <SortableCabinet
+                        cabinet={cabinet}
+                        onEdit={handleEditCabinet}
+                        onDelete={handleDeleteCabinet}
+                      />
+                      
+                      {settings.enableQRTracking && (
+                        <>
+                          <QRCodeManager
+                            cabinetId={cabinet.id}
+                            cabinetName={cabinet.name}
+                            isSecure={cabinet.isSecure}
+                            requireCheckout={settings.requireCheckoutForSecureCabinets}
+                            onCheckIn={(itemId, quantity) => handleCheckIn(cabinet.id, itemId, quantity)}
+                            onCheckOut={(itemId, quantity) => handleCheckOut(cabinet.id, itemId, quantity)}
+                          />
+                          
+                          <CheckoutHistory
+                            cabinetId={cabinet.id}
+                            records={checkoutHistory[cabinet.id] || []}
+                          />
+                        </>
+                      )}
                     </div>
-                  </div>
-                ))}
-                {cabinets.length === 0 && (
-                  <p className="text-center text-muted-foreground">No cabinets added yet</p>
-                )}
-              </div>
+                  ))}
+                </SortableContext>
+              </DndContext>
             </CardContent>
           </Card>
         </TabsContent>
@@ -372,23 +492,6 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
                         {location}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Default Unit</Label>
-                <Select 
-                  value={settings.defaultUnit}
-                  onValueChange={(value) => handleUpdateSettings({ defaultUnit: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pieces">Pieces</SelectItem>
-                    <SelectItem value="meters">Meters</SelectItem>
-                    <SelectItem value="boxes">Boxes</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

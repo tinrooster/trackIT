@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, List, FileText, Settings, Copy } from 'lucide-react'
+import { LayoutDashboard, List, FileText, Settings, Copy, ShoppingCart } from 'lucide-react'
 import { cn } from "@/lib/utils"
 import { UserMenu } from '@/components/UserMenu'
 import { useAuth } from '@/contexts/AuthContext'
@@ -13,6 +13,7 @@ export function Navigation() {
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
     { path: "/inventory", label: "Inventory", icon: List },
+    { path: "/checkout", label: "Checkout", icon: ShoppingCart },
     { path: "/templates", label: "Templates", icon: Copy },
     { path: "/reports", label: "Reports", icon: FileText },
     { path: "/settings", label: "Settings", icon: Settings }

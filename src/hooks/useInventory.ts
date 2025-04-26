@@ -5,6 +5,7 @@ import { getItems, saveItems, getSettings, saveSettings } from '@/lib/storageSer
 import { DUMMY_INVENTORY_DATA } from '@/lib/dummyData'; 
 import { toast } from 'sonner'; 
 import { Settings } from '@/lib/storageService'
+import { Cabinet } from '@/types/cabinets'
 
 type SettingsKey = keyof Settings;
 const SETTINGS_KEYS: SettingsKey[] = ['categories', 'units', 'locations', 'suppliers', 'projects'];
@@ -20,6 +21,7 @@ export function useInventory() {
   const [locations, setLocations] = useState<ItemWithSubcategories[]>([]);
   const [suppliers, setSuppliers] = useState<ItemWithSubcategories[]>([]);
   const [projects, setProjects] = useState<ItemWithSubcategories[]>([]);
+  const [cabinets, setCabinets] = useState<Cabinet[]>([]);
 
   // Load items and settings
   useEffect(() => {
@@ -48,6 +50,12 @@ export function useInventory() {
       setLocations(settings.locations);
       setSuppliers(settings.suppliers);
       setProjects(settings.projects);
+
+      // Load cabinets
+      const savedCabinets = localStorage.getItem('cabinets');
+      if (savedCabinets) {
+        setCabinets(JSON.parse(savedCabinets));
+      }
 
       // Load history
       const loadedHistory = localStorage.getItem('inventoryHistory');
@@ -347,6 +355,7 @@ export function useInventory() {
     locations,
     suppliers,
     projects,
+    cabinets,
     getItemById,
     addItem,
     updateItem,

@@ -1,3 +1,11 @@
+/**
+ * DEPRECATED: This file contains dummy data that was previously used for initializing
+ * the application. It is now kept for reference only and is no longer used.
+ * 
+ * For new installations, use the export/import functionality to seed data from
+ * existing exports.
+ */
+
 import { v4 as uuidv4 } from 'uuid';
 import { InventoryItem, OrderStatus } from '@/types/inventory';
 import { subDays, addDays } from 'date-fns';
@@ -103,7 +111,7 @@ dummyItems.push({
   location: warehouseLocation.id,
   reorderLevel: 5,
   barcode: generateBarcode(),
-  notes: "14 ordered total, 4 backordered ETA 2 weeks",
+  notes: "DUMMY DATA   >  14 ordered total, 4 backordered ETA 2 weeks",
   supplier: "Joseph Electronics",
   supplierWebsite: "www.josephelectronics.com",
   project: "2025:SUTRO",

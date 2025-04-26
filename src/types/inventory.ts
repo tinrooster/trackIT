@@ -10,10 +10,11 @@ export interface InventoryItem {
   id: string;
   name: string;
   description?: string;
-  category: string;
+  category?: string;
   subcategory?: string;
   unit: string;
-  location: string;
+  unitSubcategory?: string;
+  location?: string;
   cabinet?: string;
   quantity: number;
   supplier?: string;
@@ -23,7 +24,7 @@ export interface InventoryItem {
   qrCode?: string;
   orderStatus?: OrderStatus;
   deliveryPercentage?: number;
-  expectedDeliveryDate?: Date;
+  expectedDeliveryDate?: string | Date;
   minQuantity?: number;
   costPerUnit?: number;
   price?: number;
@@ -32,7 +33,7 @@ export interface InventoryItem {
   serialNumber?: string;
   manufacturer?: string;
   modelNumber?: string;
-  warrantyExpirationDate?: Date;
+  dateInService?: string | Date;
   lastMaintenanceDate?: Date;
   nextMaintenanceDate?: Date;
   maintenanceNotes?: string;
@@ -68,5 +69,6 @@ export interface CategoryNode {
 export interface ItemWithSubcategories {
   id: string;
   name: string;
-  subcategories?: string[];
+  description?: string;
+  children?: ItemWithSubcategories[];
 }

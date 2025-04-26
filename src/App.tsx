@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { initializeSettings } from './lib/dummyData';
 import { TemplatesPage } from './pages/TemplatesPage';
+import CheckoutPage from './pages/CheckoutPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Protected route component
@@ -47,6 +48,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <InventoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <CheckoutPage />
                 </ProtectedRoute>
               }
             />

@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { EditItemForm } from "./EditItemForm";
 import { InventoryItem, ItemWithSubcategories, CategoryNode } from "@/types/inventory";
+import { Cabinet } from "@/types/cabinets";
 import { useState } from "react";
 import { toast } from "sonner";
 import * as React from "react";
@@ -21,7 +22,7 @@ interface EditItemDialogProps {
   locations: { id: string; name: string; }[];
   suppliers: ItemWithSubcategories[];
   projects: ItemWithSubcategories[];
-  cabinets: { id: string; name: string; locationId: string; isSecure?: boolean; }[];
+  cabinets: Cabinet[];
   existingItems: InventoryItem[];
 }
 
@@ -43,6 +44,25 @@ export function EditItemDialog({
   const handleSubmit = async (values: any) => {
     try {
       setIsSubmitting(true);
+      
+      // Log the location ID and name for debugging
+      const locationObj = locations.find(loc => loc.id === item.location);
+      console.log('FORM SUBMIT - Original location:', { 
+        id: item.location, 
+        name: locationObj?.name
+      });
+      console.log('FORM SUBMIT - New location value:', values.location);
+      
+      // If we have a cabinet, get its details
+      if (item.cabinet || values.cabinet) {
+        const cabinetObj = cabinets.find(cab => cab.id === (values.cabinet || item.cabinet));
+        console.log('FORM SUBMIT - Cabinet info:', { 
+          id: values.cabinet || item.cabinet,
+          name: cabinetObj?.name,
+          locationId: cabinetObj?.locationId,
+          matchesLocation: cabinetObj?.locationId === values.location
+        });
+      }
       
       // Create a clean updated item object
       const updatedItem: InventoryItem = {
@@ -66,6 +86,12 @@ export function EditItemDialog({
         minQuantity: values.minQuantity !== undefined ? Number(values.minQuantity) : (item.minQuantity ?? 0),
         costPerUnit: values.costPerUnit !== undefined ? Number(values.costPerUnit) : (item.costPerUnit ?? 0),
         barcode: values.barcode ?? item.barcode,
+        serialNumber: values.serialNumber ?? item.serialNumber,
+        manufacturer: values.manufacturer ?? item.manufacturer,
+        modelNumber: values.modelNumber ?? item.modelNumber,
+        dateInService: values.dateInService ?? item.dateInService,
+        maintenanceNotes: values.maintenanceNotes ?? item.maintenanceNotes,
+        unitSubcategory: values.unitSubcategory ?? item.unitSubcategory,
         lastUpdated: new Date()
       };
 
@@ -104,6 +130,7 @@ export function EditItemDialog({
           projects={projects}
           cabinets={cabinets}
           isSubmitting={isSubmitting}
+          existingItems={existingItems}
         />
       </DialogContent>
     </Dialog>

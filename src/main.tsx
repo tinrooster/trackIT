@@ -7,6 +7,9 @@ import { Toaster } from 'sonner'
 import { AuthProvider } from './contexts/AuthContext'
 import { LoginPage } from './components/LoginPage'
 
+// Initialize the application data
+// Removed dummy data initialization
+
 const router = createBrowserRouter(
   createRoutesFromElements(
     <>

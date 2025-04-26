@@ -38,11 +38,11 @@ function SortableItem({
   onDelete, 
   onAddSubcategory, 
   onEditSubcategory,
-  onDeleteSubcategory 
-}: SortableItemProps) {
+  onDeleteSubcategory,
+  enableSubcategories = true,
+}: SortableItemProps & { enableSubcategories?: boolean }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(item.name);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [newSubcategory, setNewSubcategory] = useState('');
   const [editingSubcategory, setEditingSubcategory] = useState<string | null>(null);
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
@@ -81,10 +81,10 @@ function SortableItem({
 
   return (
     <div ref={setNodeRef} style={style} className="space-y-2">
-      <div className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
+      <div className="flex justify-between items-center p-2 bg-gray-100 rounded-md">
         <div className="flex items-center flex-1">
           <button {...attributes} {...listeners} className="p-1 mr-2 cursor-grab active:cursor-grabbing">
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
+            <GripVertical className="h-4 w-4 text-gray-500" />
           </button>
           {isEditing ? (
             <Input
@@ -101,80 +101,86 @@ function SortableItem({
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
-            <Pencil className="h-4 w-4" />
+            <Pencil className="h-4 w-4 text-gray-600" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-700">
+          <Button variant="ghost" size="sm" onClick={() => onDelete(item.id)} className="text-gray-600 hover:text-gray-800">
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="pl-8 space-y-2">
-        <div className="flex space-x-2">
-          <Input
-            type="text"
-            className="flex-1"
-            placeholder="Add subcategory"
-            value={newSubcategory}
-            onChange={(e) => setNewSubcategory(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleAddSubcategory();
-              }
-            }}
-          />
-          <Button onClick={handleAddSubcategory}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add
-          </Button>
-        </div>
+      {enableSubcategories && (
+        <div className="pl-8 space-y-2">
+          <div className="flex space-x-2">
+            <Input
+              type="text"
+              className="flex-1"
+              placeholder="Add subcategory"
+              value={newSubcategory}
+              onChange={(e) => setNewSubcategory(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleAddSubcategory();
+                }
+              }}
+            />
+            <Button 
+              onClick={handleAddSubcategory}
+              variant="outline"
+              className="bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-300"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add
+            </Button>
+          </div>
 
-        {item.subcategories?.map((subcategory) => (
-          <div key={subcategory} className="flex justify-between items-center p-2 bg-gray-100 rounded-md">
-            {editingSubcategory === subcategory ? (
-              <Input
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onBlur={() => {
-                  if (editValue.trim() !== subcategory) {
-                    onEditSubcategory(item.id, subcategory, editValue.trim());
-                  }
-                  setEditingSubcategory(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (editValue.trim() !== subcategory) {
-                      onEditSubcategory(item.id, subcategory, editValue.trim());
+          {item.children?.map((child) => (
+            <div key={child.name} className="flex justify-between items-center p-2 bg-gray-50 rounded-md border border-gray-200">
+              {editingSubcategory === child.name ? (
+                <Input
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={() => {
+                    if (editValue.trim() !== child.name) {
+                      onEditSubcategory(item.id, child.name, editValue.trim());
                     }
                     setEditingSubcategory(null);
-                  } else if (e.key === 'Escape') {
-                    setEditingSubcategory(null);
-                  }
-                }}
-                className="h-8"
-                autoFocus
-              />
-            ) : (
-              <>
-                <span>{subcategory}</span>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setEditingSubcategory(subcategory)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => onDeleteSubcategory(item.id, subcategory)} 
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (editValue.trim() !== child.name) {
+                        onEditSubcategory(item.id, child.name, editValue.trim());
+                      }
+                      setEditingSubcategory(null);
+                    } else if (e.key === 'Escape') {
+                      setEditingSubcategory(null);
+                    }
+                  }}
+                  className="h-8"
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span>{child.name}</span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setEditingSubcategory(child.name)} className="text-gray-600">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => onDeleteSubcategory(item.id, child.name)} 
+                      className="text-gray-600 hover:text-gray-800"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -184,6 +190,8 @@ interface EditableItemWithSubcategoriesListProps {
   setItems: (items: ItemWithSubcategories[]) => void;
   title: string;
   description?: string;
+  enableSubcategories?: boolean;
+  onCheckBeforeDelete?: (value: string, onSafeToDelete: () => void) => void;
 }
 
 export function EditableItemWithSubcategoriesList({
@@ -191,6 +199,8 @@ export function EditableItemWithSubcategoriesList({
   setItems,
   title,
   description,
+  enableSubcategories = true,
+  onCheckBeforeDelete,
 }: EditableItemWithSubcategoriesListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -214,7 +224,7 @@ export function EditableItemWithSubcategoriesList({
       const newItem: ItemWithSubcategories = {
         id: Date.now().toString(),
         name: input.value.trim(),
-        subcategories: [],
+        children: [],
       };
       setItems([...items, newItem]);
       input.value = '';
@@ -229,15 +239,25 @@ export function EditableItemWithSubcategoriesList({
   };
 
   const handleDeleteItem = (id: string) => {
-    setItems(items.filter((item) => item.id !== id));
+    const itemToDelete = items.find(item => item.id === id);
+    if (itemToDelete && onCheckBeforeDelete) {
+      onCheckBeforeDelete(itemToDelete.name, () => {
+        setItems(items.filter((item) => item.id !== id));
+      });
+    } else {
+      setItems(items.filter((item) => item.id !== id));
+    }
   };
 
-  const handleAddSubcategory = (id: string, subcategory: string) => {
+  const handleAddSubcategory = (id: string, subcategoryName: string) => {
     const newItems = items.map((item) => {
       if (item.id === id) {
         return {
           ...item,
-          subcategories: [...(item.subcategories || []), subcategory],
+          children: [...(item.children || []), {
+            id: Date.now().toString(),
+            name: subcategoryName
+          }],
         };
       }
       return item;
@@ -250,8 +270,8 @@ export function EditableItemWithSubcategoriesList({
       if (item.id === id) {
         return {
           ...item,
-          subcategories: item.subcategories?.map((sub) => 
-            sub === oldValue ? newValue : sub
+          children: item.children?.map((child) => 
+            child.name === oldValue ? { ...child, name: newValue } : child
           ),
         };
       }
@@ -260,12 +280,12 @@ export function EditableItemWithSubcategoriesList({
     setItems(newItems);
   };
 
-  const handleDeleteSubcategory = (id: string, subcategory: string) => {
+  const handleDeleteSubcategory = (id: string, subcategoryName: string) => {
     const newItems = items.map((item) => {
       if (item.id === id) {
         return {
           ...item,
-          subcategories: item.subcategories?.filter((sub) => sub !== subcategory),
+          children: item.children?.filter((child) => child.name !== subcategoryName),
         };
       }
       return item;
@@ -283,8 +303,8 @@ export function EditableItemWithSubcategoriesList({
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-medium">{title}</h3>
-          {description && <p className="text-sm text-muted-foreground">{description}</p>}
+          <h3 className="text-lg font-medium text-gray-800">{title}</h3>
+          {description && <p className="text-sm text-gray-500">{description}</p>}
         </div>
       </div>
 
@@ -295,7 +315,11 @@ export function EditableItemWithSubcategoriesList({
           placeholder={`Add new ${title.toLowerCase().slice(0, -1)}`}
           onKeyDown={handleKeyDown}
         />
-        <Button onClick={handleAddItem}>
+        <Button 
+          onClick={handleAddItem}
+          className="bg-gray-200 hover:bg-gray-300 text-gray-800 border border-gray-300"
+          variant="outline"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add
         </Button>
@@ -313,6 +337,7 @@ export function EditableItemWithSubcategoriesList({
                 onAddSubcategory={handleAddSubcategory}
                 onEditSubcategory={handleEditSubcategory}
                 onDeleteSubcategory={handleDeleteSubcategory}
+                enableSubcategories={enableSubcategories}
               />
             ))}
           </div>
