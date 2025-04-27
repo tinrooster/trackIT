@@ -23,24 +23,30 @@ if (require("electron-squirrel-startup")) {
   electron.app.quit();
 }
 let mainWindow = null;
+process.env.NODE_ENV === "development";
 const createWindow = () => {
   mainWindow = new electron.BrowserWindow({
     width: 900,
     height: 680,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      preload: path.join(__dirname, "../preload/preload.js")
     }
   });
   if (process.env.NODE_ENV === "development") {
     mainWindow.loadURL(process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL || "http://localhost:5173");
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+    mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
   mainWindow.webContents.on("did-finish-load", () => {
     mainWindow?.webContents.executeJavaScript('console.log("electronAPI available:", !!window.electronAPI)');
   });
+  console.log("MAIN __dirname:", __dirname);
+  console.log("Preload path:", path.join(__dirname, "../preload/preload.js"));
+  const fs = require("fs");
+  console.log("Preload exists:", fs.existsSync(path.join(__dirname, "../preload/preload.js")));
 };
 electron.app.on("ready", () => {
   console.log("Setting up IPC handlers...");

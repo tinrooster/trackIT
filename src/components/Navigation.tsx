@@ -10,7 +10,6 @@ import { logger } from '@/utils/logger'
 export function Navigation() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const { user } = useAuth()
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -46,7 +45,9 @@ export function Navigation() {
               </Link>
             ))}
             <DebugLogsButton onDownload={() => logger.downloadLogs('trackit-continuous.log')} context="trackit-continuous" />
-            <UserMenu />
+            <div className="ml-4 flex items-center">
+              <UserMenu />
+            </div>
           </div>
 
           {/* Mobile menu button */}

@@ -179,7 +179,6 @@ export function LoginForm() {
             <Checkbox id="remember" {...register('remember')} disabled={isLoading} />
             <Label htmlFor="remember" className="text-sm flex items-center">
               Remember me
-              <span className="ml-1 text-xs text-muted-foreground">(Keeps you logged in on this device)</span>
             </Label>
           </div>
           <Button

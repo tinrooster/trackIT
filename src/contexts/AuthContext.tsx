@@ -3,11 +3,15 @@ import { comparePasswords } from '../utils/passwordUtils';
 import { toast } from 'react-hot-toast';
 import { logger } from '../utils/logger';
 
-interface User {
+export interface User {
+  id: string;
   username: string;
+  displayName: string;
   password: string;
+  role: 'admin' | 'user' | 'viewer';
   securityQuestion: string;
   securityAnswer: string;
+  phoneExtension?: string;
 }
 
 interface AuthContextType {
@@ -28,6 +32,17 @@ export function useAuth() {
   return context;
 }
 
+// Helper to get the correct store object (for compatibility)
+function getStore() {
+  if (window.electron && window.electron.store) return window.electron.store;
+  if (window.electronStore) return {
+    get: async (key: string) => window.electronStore.getData(key),
+    set: async (key: string, value: any) => window.electronStore.setData(key, value),
+    delete: async (key: string) => window.electronStore.deleteData(key),
+  };
+  throw new Error('No Electron store found');
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,27 +50,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const storedUsers = await window.electron.store.get('users');
+        const store = getStore();
+        let storedUsers = await store.get('users');
         if (!storedUsers) {
           // Create default admin account if no users exist
-          const defaultAdmin = {
+          const defaultAdmin: User = {
+            id: crypto.randomUUID(),
             username: 'admin',
+            displayName: 'Administrator',
             password: 'admin',
+            role: 'admin',
             securityQuestion: 'What is the default password?',
-            securityAnswer: 'admin'
+            securityAnswer: 'admin',
           };
-          await window.electron.store.set('users', [defaultAdmin]);
+          await store.set('users', [defaultAdmin]);
+          storedUsers = [defaultAdmin];
           toast.success('Default admin account created. Username: admin, Password: admin');
           logger.info('Created default admin account');
         }
 
-        const rememberedUser = await window.electron.store.get('rememberedUser');
+        const rememberedUser = await store.get('rememberedUser');
         if (rememberedUser) {
           setCurrentUser(rememberedUser);
           logger.info('Restored remembered user session');
         }
       } catch (error) {
-        logger.error('Error initializing auth:', error);
+        logger.error('Error initializing auth: ' + String(error));
         toast.error('Error initializing authentication');
       } finally {
         setLoading(false);
@@ -66,10 +86,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (username: string, password: string, rememberMe: boolean): Promise<boolean> => {
-    logger.info('Login attempt for user:', username);
+    logger.info(`Login attempt for user: ${username}`);
     setLoading(true);
     try {
-      const users = await window.electron.store.get('users') as User[];
+      const store = getStore();
+      const users = await store.get('users') as User[];
       console.log('Retrieved users:', users);
 
       const userRecord = users.find(u => u.username === username);
@@ -85,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (passwordMatch) {
         setCurrentUser(userRecord);
         if (rememberMe) {
-          await window.electron.store.set('rememberedUser', userRecord);
+          await store.set('rememberedUser', userRecord);
           logger.info('User session remembered');
         }
         logger.info('Login successful');
@@ -97,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
     } catch (error) {
-      logger.error('Login error:', error);
+      logger.error('Login error: ' + String(error));
       toast.error('An error occurred during login');
       return false;
     } finally {
@@ -106,15 +127,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    const store = getStore();
     setCurrentUser(null);
-    await window.electron.store.delete('rememberedUser');
+    await store.delete('rememberedUser');
     logger.info('User logged out');
     toast.success('Logged out successfully');
   };
 
   const resetPassword = async (username: string, securityAnswer: string, newPassword: string): Promise<boolean> => {
     try {
-      const users = await window.electron.store.get('users') as User[];
+      const store = getStore();
+      const users = await store.get('users') as User[];
       const userIndex = users.findIndex(u => u.username === username);
       
       if (userIndex === -1) {
@@ -130,13 +153,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       users[userIndex].password = newPassword;
-      await window.electron.store.set('users', users);
+      await store.set('users', users);
       
       logger.info('Password reset successful');
       toast.success('Password reset successful');
       return true;
     } catch (error) {
-      logger.error('Password reset error:', error);
+      logger.error('Password reset error: ' + String(error));
       toast.error('An error occurred during password reset');
       return false;
     }

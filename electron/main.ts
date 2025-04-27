@@ -12,6 +12,8 @@ if (require('electron-squirrel-startup')) {
 
 let mainWindow: BrowserWindow | null = null;
 
+const isDev = process.env.NODE_ENV === 'development';
+
 const createWindow = () => {
   // Create the browser window.
   mainWindow = new BrowserWindow({
@@ -19,7 +21,8 @@ const createWindow = () => {
     height: 680,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      preload: path.join(__dirname, '../preload/preload.js')
     }
   });
 
@@ -28,13 +31,18 @@ const createWindow = () => {
     mainWindow.loadURL(process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL || 'http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
   // Log when the window is ready
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow?.webContents.executeJavaScript('console.log("electronAPI available:", !!window.electronAPI)');
   });
+
+  console.log('MAIN __dirname:', __dirname);
+  console.log('Preload path:', path.join(__dirname, '../preload/preload.js'));
+  const fs = require('fs');
+  console.log('Preload exists:', fs.existsSync(path.join(__dirname, '../preload/preload.js')));
 };
 
 // This method will be called when Electron has finished

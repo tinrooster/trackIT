@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
-import { logAction, getRecentLogs } from '@/lib/logging'
 import { SettingsService } from '@/lib/settingsService'
 import type { Cabinet } from '@/types/cabinets'
 import { format } from 'date-fns'
@@ -22,7 +21,7 @@ export default function CheckoutPage() {
   const [quantity, setQuantity] = useState<string>('')
   const [cabinets, setCabinets] = useState<Cabinet[]>([])
   const [recentActivities, setRecentActivities] = useState<LogEntry[]>([])
-  const { user } = useAuth()
+  const { currentUser } = useAuth()
   const [settings, setSettings] = useState({
     requireCheckoutForSecureCabinets: true
   })
@@ -137,7 +136,7 @@ export default function CheckoutPage() {
         quantity: numQuantity,
         cabinetId: selectedCabinetId,
         cabinetName: selectedCabinet.name,
-        performedBy: user?.username
+        performedBy: currentUser?.username
       }, 'CheckoutPage');
       
       toast.success(`Successfully ${action === 'check-out' ? 'checked out' : 'checked in'} ${numQuantity} ${selectedItem?.name}`)

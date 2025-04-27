@@ -30,7 +30,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { logAction } from '@/lib/logging';
 
 type SortConfig = {
   key: keyof InventoryItem | 'totalValue' | 'cabinet';
@@ -278,16 +277,16 @@ export function InventoryTable({
 
   // Debug: log table state
   useEffect(() => {
-    logAction('InventoryTable Debug', {
-      activeColumns,
-      filteredItemsCount: finalFilteredItems.length,
-      filteredItemsSample: finalFilteredItems.slice(0, 3),
-      sortConfig,
-      isDetailedView,
-      cabinetFilter,
-      filters,
-      searchQuery
-    }, 'success');
+    // logger.debug('system', 'InventoryTable Debug', {
+    //   activeColumns,
+    //   filteredItemsCount: finalFilteredItems.length,
+    //   filteredItemsSample: finalFilteredItems.slice(0, 3),
+    //   sortConfig,
+    //   isDetailedView,
+    //   cabinetFilter,
+    //   filters,
+    //   searchQuery
+    // }, 'InventoryTable');
   }, [activeColumns, finalFilteredItems, sortConfig, isDetailedView, cabinetFilter, filters, searchQuery]);
 
   return (

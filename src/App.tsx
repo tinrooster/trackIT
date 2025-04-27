@@ -15,16 +15,13 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Protected route component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  // const { user } = useAuth();
-  // const location = useLocation();
+  const { currentUser } = useAuth();
+  const location = useLocation();
 
-  // TEMP BYPASS AUTH FOR DEBUGGING
+  if (!currentUser) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
   return <>{children}</>;
-
-  // if (!user) {
-  //   return <Navigate to="/login" state={{ from: location }} replace />;
-  // }
-  // return <>{children}</>;
 }
 
 export default function App() {

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 export function UserMenu() {
-  const { user, logout } = useAuth()
+  const { currentUser, logout } = useAuth()
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
 
@@ -27,7 +27,7 @@ export function UserMenu() {
     }
   }
 
-  if (!user) return null
+  if (!currentUser) return null
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -35,7 +35,7 @@ export function UserMenu() {
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
             <AvatarFallback>
-              {user.displayName.charAt(0).toUpperCase()}
+              {currentUser.displayName.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
         </Button>
@@ -43,9 +43,9 @@ export function UserMenu() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.displayName}</p>
+            <p className="text-sm font-medium leading-none">{currentUser.displayName}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              @{user.username}
+              @{currentUser.username}
             </p>
           </div>
         </DropdownMenuLabel>

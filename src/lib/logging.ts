@@ -4,7 +4,7 @@ import { toast } from "sonner";
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogType = 'system' | 'audit' | 'performance' | 'security';
 
-interface LogEntry {
+export interface LogEntry {
   timestamp: Date;
   level: LogLevel;
   type: LogType;
@@ -180,10 +180,12 @@ function storeLogs(logs: LogEntry[]) {
 
 export function logAction(action: string, details?: Record<string, any>, status: 'success' | 'error' = 'success') {
   const entry: LogEntry = {
-    timestamp: new Date().toISOString(),
-    action,
-    details: details || {},
-    status
+    timestamp: new Date(),
+    level: 'info', // Default to info, or make this a parameter if needed
+    type: 'audit', // Default to audit, or make this a parameter if needed
+    message: action,
+    details: { ...(details || {}), status },
+    // component: can be added if needed
   };
   addLogEntry(entry);
 }
