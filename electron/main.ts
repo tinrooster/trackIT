@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import * as fsPromises from 'fs/promises';
 
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
+declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -13,60 +13,52 @@ if (require('electron-squirrel-startup')) {
 let mainWindow: BrowserWindow | null = null;
 
 const createWindow = () => {
-  console.log('Creating window with preload script...');
-  console.log('Dev server URL:', MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  console.log('Vite name:', MAIN_WINDOW_VITE_NAME);
-  
   // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 900,
     height: 680,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, '../preload/preload.js')
+      contextIsolation: true
     }
   });
 
-  // In development, load from localhost
+  // and load the index.html of the app.
   if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL(process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL || 'http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, load the index.html file
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
-
-  // Set up IPC handlers
-  ipcMain.on('toMain', (event, data) => {
-    // Handle messages from renderer
-    console.log('Received in main:', data);
-    
-    // Example of sending a response back
-    if (mainWindow) {
-      mainWindow.webContents.send('fromMain', { 
-        response: `Processed: ${data}` 
-      });
-    }
-  });
-
   // Log when the window is ready
   mainWindow.webContents.on('did-finish-load', () => {
-    console.log('Window loaded, checking preload...');
     mainWindow?.webContents.executeJavaScript('console.log("electronAPI available:", !!window.electronAPI)');
   });
+};
 
-  // Handle file system operations
+// This method will be called when Electron has finished
+// initialization and is ready to create browser windows.
+// Some APIs can only be used after this event occurs.
+app.on('ready', () => {
+  console.log('Setting up IPC handlers...');
+  
+  // Add IPC handler for saving logs
   ipcMain.handle('save-logs', async (_event, { filename, content }) => {
+    console.log('Received save-logs request:', { filename });
+    
     try {
+      // Create logs directory in project root if it doesn't exist
       const logsDir = path.join(app.getAppPath(), 'logs');
+      console.log('Creating logs directory:', logsDir);
       await fsPromises.mkdir(logsDir, { recursive: true });
+
+      // Save file directly to logs directory
       const filePath = path.join(logsDir, filename);
+      console.log('Saving logs to:', filePath);
       await fsPromises.writeFile(filePath, content, 'utf-8');
+      
+      console.log('Logs saved successfully');
       return { success: true, path: filePath };
     } catch (error) {
       console.error('Error saving logs:', error);
@@ -76,13 +68,7 @@ const createWindow = () => {
       };
     }
   });
-};
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
-  console.log('Setting up IPC handlers...');
   createWindow();
 });
 

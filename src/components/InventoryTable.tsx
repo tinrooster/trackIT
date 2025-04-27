@@ -30,6 +30,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { logAction } from '@/lib/logging';
 
 type SortConfig = {
   key: keyof InventoryItem | 'totalValue' | 'cabinet';
@@ -231,7 +232,7 @@ export function InventoryTable({
       (item.notes && item.notes.toLowerCase().includes(lowerCaseQuery)) ||
       (item.barcode && item.barcode.toLowerCase().includes(lowerCaseQuery)) ||
       (item.supplier && item.supplier.toLowerCase().includes(lowerCaseQuery)) ||
-      (getLocationName(item.location).toLowerCase().includes(lowerCaseQuery))
+      (getLocationName(item.location ?? '').toLowerCase().includes(lowerCaseQuery))
     );
   }, [filteredItemsByDropdown, searchQuery, locations]);
 
@@ -274,6 +275,20 @@ export function InventoryTable({
   const formatHeader = (key: string) => key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
 
   const activeColumns = isDetailedView ? DETAILED_COLUMNS : SIMPLE_COLUMNS;
+
+  // Debug: log table state
+  useEffect(() => {
+    logAction('InventoryTable Debug', {
+      activeColumns,
+      filteredItemsCount: finalFilteredItems.length,
+      filteredItemsSample: finalFilteredItems.slice(0, 3),
+      sortConfig,
+      isDetailedView,
+      cabinetFilter,
+      filters,
+      searchQuery
+    }, 'success');
+  }, [activeColumns, finalFilteredItems, sortConfig, isDetailedView, cabinetFilter, filters, searchQuery]);
 
   return (
     <div className="space-y-4">
@@ -330,130 +345,135 @@ export function InventoryTable({
         </div>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {activeColumns.map((key) => (
-              <TableHead key={key}>
-                {key !== 'actions' ? (
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleSort(key as keyof InventoryItem | 'totalValue' | 'cabinet')}
-                    className="p-0 h-auto text-left"
-                  >
-                    {formatHeader(key)}
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                  </Button>
-                ) : (
-                  <span className="text-right block">Actions</span>
-                )}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {finalFilteredItems.length === 0 ? (
+      <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+        <Table className="w-full sticky-header">
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={activeColumns.length} className="text-center h-24">
-                No matching items found.
-              </TableCell>
+              {activeColumns.map((key) => (
+                <TableHead
+                  key={key}
+                  style={{ position: 'sticky', top: 0, zIndex: 2, background: 'white', width: `${100 / activeColumns.length}%` }}
+                >
+                  {key !== 'actions' ? (
+                    <Button
+                      variant="ghost"
+                      onClick={() => handleSort(key as keyof InventoryItem | 'totalValue' | 'cabinet')}
+                      className="p-0 h-auto text-left"
+                    >
+                      {formatHeader(key)}
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <span className="text-right block">Actions</span>
+                  )}
+                </TableHead>
+              ))}
             </TableRow>
-          ) : (
-            finalFilteredItems.map((item) => (
-              <TableRow
-                key={item.id}
-                className={cn(
-                  "group hover:bg-muted/50",
-                  { "bg-muted": highlightRowId === item.id }
-                )}
-              >
-                {activeColumns.map((column) => {
-                  if (column === 'actions') {
-                    return (
-                      <TableCell key={column} className="text-right">
-                        {showActions && (
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => onEdit(item)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+          </TableHeader>
+          <TableBody>
+            {finalFilteredItems.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={activeColumns.length} className="text-center h-24">
+                  No matching items found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              finalFilteredItems.map((item) => (
+                <TableRow
+                  key={item.id}
+                  className={cn(
+                    "group hover:bg-muted/50",
+                    { "bg-muted": highlightRowId === item.id }
+                  )}
+                >
+                  {activeColumns.map((column) => {
+                    if (column === 'actions') {
+                      return (
+                        <TableCell key={column} className="text-right">
+                          {showActions && (
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onEdit(item)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      );
+                    }
+
+                    let cellContent: React.ReactNode = '';
+
+                    switch (column) {
+                      case 'lastUpdated':
+                        cellContent = item[column] instanceof Date 
+                          ? format(item[column] as Date, "MMM d, yyyy")
+                          : format(new Date(item[column] as string), "MMM d, yyyy");
+                        break;
+                      case 'totalValue':
+                        cellContent = formatCurrency(item.costPerUnit ? item.quantity * item.costPerUnit : undefined);
+                        break;
+                      case 'costPerUnit':
+                        cellContent = formatCurrency(item[column]);
+                        break;
+                      case 'location':
+                        cellContent = getLocationName(item[column] ?? '');
+                        break;
+                      case 'name':
+                        cellContent = (
+                          <div className="flex items-center gap-2">
+                            <span>{item[column]?.toString() || '-'}</span>
+                            {item.reorderLevel !== undefined && item.quantity <= item.reorderLevel && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="destructive" className="flex items-center gap-1 px-2 py-0">
+                                      <BarChart2 className="h-3 w-3" />
+                                      <span className="text-xs">Low</span>
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Quantity below reorder level ({item.reorderLevel})</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            {item.notes && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="secondary" className="flex items-center gap-1 px-2 py-0">
+                                      <StickyNote className="h-3 w-3" />
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="max-w-xs whitespace-normal break-words">{item.notes}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                           </div>
-                        )}
+                        );
+                        break;
+                      default:
+                        cellContent = item[column]?.toString() || '-';
+                    }
+
+                    return (
+                      <TableCell key={column} style={{ width: `${100 / activeColumns.length}%` }}>
+                        {cellContent}
                       </TableCell>
                     );
-                  }
-
-                  let cellContent: React.ReactNode = '';
-
-                  switch (column) {
-                    case 'lastUpdated':
-                      cellContent = item[column] instanceof Date 
-                        ? format(item[column] as Date, "MMM d, yyyy")
-                        : format(new Date(item[column] as string), "MMM d, yyyy");
-                      break;
-                    case 'totalValue':
-                      cellContent = formatCurrency(item.costPerUnit ? item.quantity * item.costPerUnit : undefined);
-                      break;
-                    case 'costPerUnit':
-                      cellContent = formatCurrency(item[column]);
-                      break;
-                    case 'location':
-                      cellContent = getLocationName(item[column]);
-                      break;
-                    case 'name':
-                      cellContent = (
-                        <div className="flex items-center gap-2">
-                          <span>{item[column]?.toString() || '-'}</span>
-                          {item.reorderLevel !== undefined && item.quantity <= item.reorderLevel && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="destructive" className="flex items-center gap-1 px-2 py-0">
-                                    <BarChart2 className="h-3 w-3" />
-                                    <span className="text-xs">Low</span>
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Quantity below reorder level ({item.reorderLevel})</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          {item.notes && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="secondary" className="flex items-center gap-1 px-2 py-0">
-                                    <StickyNote className="h-3 w-3" />
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p className="max-w-xs whitespace-normal break-words">{item.notes}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
-                      );
-                      break;
-                    default:
-                      cellContent = item[column]?.toString() || '-';
-                  }
-
-                  return (
-                    <TableCell key={column}>
-                      {cellContent}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+                  })}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 } 

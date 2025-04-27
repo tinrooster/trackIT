@@ -24,43 +24,36 @@ if (require("electron-squirrel-startup")) {
 }
 let mainWindow = null;
 const createWindow = () => {
-  console.log("Creating window with preload script...");
-  console.log("Dev server URL:", void 0);
-  console.log("Vite name:", void 0);
   mainWindow = new electron.BrowserWindow({
     width: 900,
     height: 680,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, "../preload/preload.js")
+      contextIsolation: true
     }
   });
-  {
-    mainWindow.loadURL("http://localhost:5173");
+  if (process.env.NODE_ENV === "development") {
+    mainWindow.loadURL(process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL || "http://localhost:5173");
     mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
-  electron.ipcMain.on("toMain", (event, data) => {
-    console.log("Received in main:", data);
-    if (mainWindow) {
-      mainWindow.webContents.send("fromMain", {
-        response: `Processed: ${data}`
-      });
-    }
-  });
   mainWindow.webContents.on("did-finish-load", () => {
-    console.log("Window loaded, checking preload...");
     mainWindow?.webContents.executeJavaScript('console.log("electronAPI available:", !!window.electronAPI)');
   });
+};
+electron.app.on("ready", () => {
+  console.log("Setting up IPC handlers...");
   electron.ipcMain.handle("save-logs", async (_event, { filename, content }) => {
+    console.log("Received save-logs request:", { filename });
     try {
       const logsDir = path.join(electron.app.getAppPath(), "logs");
+      console.log("Creating logs directory:", logsDir);
       await fsPromises__namespace.mkdir(logsDir, { recursive: true });
       const filePath = path.join(logsDir, filename);
+      console.log("Saving logs to:", filePath);
       await fsPromises__namespace.writeFile(filePath, content, "utf-8");
+      console.log("Logs saved successfully");
       return { success: true, path: filePath };
     } catch (error) {
       console.error("Error saving logs:", error);
@@ -70,9 +63,6 @@ const createWindow = () => {
       };
     }
   });
-};
-electron.app.whenReady().then(() => {
-  console.log("Setting up IPC handlers...");
   createWindow();
 });
 electron.app.on("window-all-closed", () => {

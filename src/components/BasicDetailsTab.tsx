@@ -22,22 +22,55 @@ export function BasicDetailsTab({
   cabinets = [],
   projects = [] 
 }: BasicDetailsTabProps) {
-  // Get the selected location and its subcategories
-  const selectedLocation = React.useMemo(() => {
-    const locationId = form.watch('location');
-    return locations.find(loc => loc.id === locationId);
-  }, [form.watch('location'), locations]);
+  // Function to get flattened category options with subcategories inline
+  const getFlattenedCategoryOptions = React.useMemo(() => {
+    const options: { id: string; name: string }[] = [];
+    
+    categories.forEach(category => {
+      // Add the main category
+      options.push({ id: category.name, name: category.name });
+      
+      // Add subcategories if they exist
+      if (category.children && category.children.length > 0) {
+        category.children.forEach(child => {
+          options.push({ 
+            id: `${category.name}/${child.name}`, 
+            name: `${category.name}/${child.name}` 
+          });
+        });
+      }
+    });
+    
+    return options;
+  }, [categories]);
 
-  // Filter cabinets based on selected location
+  // Function to get flattened location options with subcategories inline
+  const getFlattenedLocationOptions = React.useMemo(() => {
+    const options: { id: string; name: string }[] = [];
+    
+    locations.forEach(location => {
+      // Add the main location
+      options.push({ id: location.id, name: location.name });
+      
+      // Add subcategories if they exist
+      if (location.children && location.children.length > 0) {
+        location.children.forEach(subcat => {
+          options.push({ 
+            id: `${location.id}/${subcat.id}`, 
+            name: `${location.name}/${subcat.name}` 
+          });
+        });
+      }
+    });
+    
+    return options;
+  }, [locations]);
+
+  // Filter cabinets based on selected location (handling both direct and subcategory locations)
   const availableCabinets = React.useMemo(() => {
-    const locationId = form.watch('location');
+    const locationId = form.watch('location')?.split('/')[0]; // Get the parent location ID
     return cabinets?.filter(cabinet => cabinet.locationId === locationId) || [];
   }, [form.watch('location'), cabinets]);
-
-  // Get available subcategories for the selected location
-  const availableSubcategories = React.useMemo(() => {
-    return selectedLocation?.children || [];
-  }, [selectedLocation]);
 
   return (
     <div className="space-y-4">
@@ -94,9 +127,9 @@ export function BasicDetailsTab({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.name} value={category.name}>
-                        {category.name}
+                    {getFlattenedCategoryOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -136,7 +169,7 @@ export function BasicDetailsTab({
           />
         </div>
 
-        {/* Right Column - Location, Subcategory, and Cabinet */}
+        {/* Right Column - Location and Cabinet */}
         <div className="space-y-4">
           <FormField
             control={form.control}
@@ -147,9 +180,8 @@ export function BasicDetailsTab({
                 <Select
                   onValueChange={(value) => {
                     field.onChange(value);
-                    // Clear cabinet and subcategory when location changes
+                    // Clear cabinet when location changes
                     form.setValue('cabinet', '');
-                    form.setValue('locationSubcategory', '');
                   }}
                   value={field.value}
                 >
@@ -159,10 +191,9 @@ export function BasicDetailsTab({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id}>
-                        {location.name}
-                        {location.children && location.children.length > 0 && " 📁"}
+                    {getFlattenedLocationOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -171,37 +202,6 @@ export function BasicDetailsTab({
               </FormItem>
             )}
           />
-
-          {availableSubcategories.length > 0 && (
-            <FormField
-              control={form.control}
-              name="locationSubcategory"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Location Subcategory</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value || undefined}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select subcategory" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {availableSubcategories.map((subcat) => (
-                        <SelectItem key={subcat.id} value={subcat.id}>
-                          {subcat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
 
           {availableCabinets.length > 0 && (
             <FormField

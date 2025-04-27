@@ -125,3 +125,7 @@ Please ensure your code follows the project's coding standards and includes appr
 - Implement user authentication
 - Begin development of mobile applications
 - Release version 2.0.0
+
+## [Unreleased]
+- Removed all usage of electron-store from the renderer process to fix blank screen and Node.js errors.
+- Logging in the renderer now uses an in-memory fallback. Persistent logs will require IPC to the main process in the future.

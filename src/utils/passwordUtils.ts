@@ -45,7 +45,12 @@ export const generateTempPassword = (): string => {
  * @returns True if passwords match
  */
 export function comparePasswords(inputPassword: string, storedPassword: string): boolean {
-  return inputPassword === storedPassword;
+  console.log('PasswordUtils: Comparing passwords');
+  console.log('PasswordUtils: Input password length:', inputPassword?.length);
+  console.log('PasswordUtils: Stored password length:', storedPassword?.length);
+  const result = inputPassword === storedPassword;
+  console.log('PasswordUtils: Password match result:', result);
+  return result;
 }
 
 /**

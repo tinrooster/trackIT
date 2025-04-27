@@ -1,8 +1,18 @@
 import { z } from "zod";
 import { Cabinet, CabinetWithItems } from "@/types/cabinets";
 
+declare global {
+  interface Window {
+    electronStore: {
+      getData: (key: string) => any;
+      setData: (key: string, value: any) => void;
+      deleteData: (key: string) => void;
+    };
+  }
+}
+
 // Define the settings schema
-export const defaultSettingsSchema = z.object({
+const defaultSettingsSchema = z.object({
   defaultLocation: z.string().optional(),
   defaultUnit: z.string().optional(),
   defaultCategory: z.string().optional(),
@@ -19,17 +29,16 @@ export const defaultSettingsSchema = z.object({
 export type DefaultSettings = z.infer<typeof defaultSettingsSchema>;
 
 export class SettingsService {
-  private static SETTINGS_KEY = 'inventory_default_settings';
-  private static CABINETS_KEY = 'inventory_cabinets';
+  private static SETTINGS_KEY = 'defaultSettings';
+  private static CABINETS_KEY = 'cabinets';
 
   // Load default settings
   static loadDefaultSettings(): DefaultSettings {
     try {
-      const stored = localStorage.getItem(this.SETTINGS_KEY);
-      if (!stored) return this.getDefaultSettings();
+      const settings = window.electronStore.getData(this.SETTINGS_KEY) as DefaultSettings;
+      if (!settings) return this.getDefaultSettings();
       
-      const parsed = JSON.parse(stored);
-      return defaultSettingsSchema.parse(parsed);
+      return defaultSettingsSchema.parse(settings);
     } catch (error) {
       console.error('Error loading settings:', error);
       return this.getDefaultSettings();
@@ -40,7 +49,7 @@ export class SettingsService {
   static saveDefaultSettings(settings: DefaultSettings): void {
     try {
       const validated = defaultSettingsSchema.parse(settings);
-      localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(validated));
+      window.electronStore.setData(this.SETTINGS_KEY, validated);
     } catch (error) {
       console.error('Error saving settings:', error);
       throw error;
@@ -62,8 +71,8 @@ export class SettingsService {
   // Cabinet Management
   static async getCabinets(): Promise<Cabinet[]> {
     try {
-      const stored = localStorage.getItem(this.CABINETS_KEY);
-      return stored ? JSON.parse(stored) : [];
+      const cabinets = window.electronStore.getData(this.CABINETS_KEY) as Cabinet[];
+      return cabinets || [];
     } catch (error) {
       console.error('Error loading cabinets:', error);
       return [];
@@ -81,7 +90,7 @@ export class SettingsService {
         cabinets.push(cabinet);
       }
 
-      localStorage.setItem(this.CABINETS_KEY, JSON.stringify(cabinets));
+      window.electronStore.setData(this.CABINETS_KEY, cabinets);
     } catch (error) {
       console.error('Error saving cabinet:', error);
       throw error;
@@ -92,7 +101,7 @@ export class SettingsService {
     try {
       const cabinets = await this.getCabinets();
       const filtered = cabinets.filter(c => c.id !== cabinetId);
-      localStorage.setItem(this.CABINETS_KEY, JSON.stringify(filtered));
+      window.electronStore.setData(this.CABINETS_KEY, filtered);
     } catch (error) {
       console.error('Error deleting cabinet:', error);
       throw error;

@@ -1,45 +1,15 @@
-import { InventoryItem, ItemWithSubcategories } from "@/types/inventory";
+import { InventoryItem, CategoryNode, ItemWithSubcategories } from '@/types/inventory';
 import { ItemTemplate } from '@/types/templates';
-import { CategoryNode } from '@/types/inventory';
 
-// Helper to parse date strings back into Date objects
-const parseItemDates = (item: any): InventoryItem => {
-  return {
-    ...item,
-    lastUpdated: item.lastUpdated ? new Date(item.lastUpdated) : new Date(),
-    expectedDeliveryDate: item.expectedDeliveryDate ? new Date(item.expectedDeliveryDate) : undefined,
-  };
-};
-
-// Get items from localStorage
-export const getItems = (): InventoryItem[] => {
-  try {
-    const itemsJson = localStorage.getItem('inventoryItems');
-    if (!itemsJson) return [];
-    
-    const itemsArray = JSON.parse(itemsJson);
-    // Ensure dates are parsed correctly
-    return itemsArray.map(parseItemDates);
-  } catch (error) {
-    console.error('Error getting items from localStorage:', error);
-    return [];
+declare global {
+  interface Window {
+    electronStore: {
+      getData: (key: string) => any;
+      setData: (key: string, value: any) => void;
+      deleteData: (key: string) => void;
+    };
   }
-};
-
-// Save items to localStorage
-export const saveItems = (items: InventoryItem[]): void => {
-  try {
-    // Ensure dates are stored as ISO strings for consistency
-    const itemsToSave = items.map(item => ({
-      ...item,
-      lastUpdated: item.lastUpdated instanceof Date ? item.lastUpdated.toISOString() : new Date().toISOString(),
-      expectedDeliveryDate: item.expectedDeliveryDate instanceof Date ? item.expectedDeliveryDate.toISOString() : undefined,
-    }));
-    localStorage.setItem('inventoryItems', JSON.stringify(itemsToSave));
-  } catch (error) {
-    console.error('Error saving items to localStorage:', error);
-  }
-};
+}
 
 // Constants for storage keys
 export const STORAGE_KEYS = {
@@ -49,10 +19,42 @@ export const STORAGE_KEYS = {
   SUPPLIERS: 'inventory-suppliers',
   PROJECTS: 'inventory-projects',
   ITEMS: 'inventoryItems',
-  HISTORY: 'inventoryHistory',
+  HISTORY: 'inventory-history',
   TEMPLATES: 'inventory-templates',
   GENERAL_SETTINGS: 'inventory-general-settings',
   USERS: 'users',
+};
+
+// Helper function to parse dates in items
+const parseItemDates = (item: any): InventoryItem => ({
+  ...item,
+  lastUpdated: item.lastUpdated ? new Date(item.lastUpdated) : new Date(),
+  expectedDeliveryDate: item.expectedDeliveryDate ? new Date(item.expectedDeliveryDate) : undefined
+});
+
+// Get items from store
+export const getItems = (): InventoryItem[] => {
+  try {
+    const items = window.electronStore.getData(STORAGE_KEYS.ITEMS) as InventoryItem[];
+    return items ? items.map(parseItemDates) : [];
+  } catch (error) {
+    console.error('Error getting items from store:', error);
+    return [];
+  }
+};
+
+// Save items to store
+export const saveItems = (items: InventoryItem[]): void => {
+  try {
+    const itemsToSave = items.map(item => ({
+      ...item,
+      lastUpdated: item.lastUpdated instanceof Date ? item.lastUpdated.toISOString() : new Date().toISOString(),
+      expectedDeliveryDate: item.expectedDeliveryDate instanceof Date ? item.expectedDeliveryDate.toISOString() : undefined,
+    }));
+    window.electronStore.setData(STORAGE_KEYS.ITEMS, itemsToSave);
+  } catch (error) {
+    console.error('Error saving items to store:', error);
+  }
 };
 
 export interface Settings {
@@ -63,7 +65,7 @@ export interface Settings {
   projects: ItemWithSubcategories[];
 }
 
-// Get settings from localStorage
+// Get settings from store
 export const getSettings = (): Settings => {
   try {
     const settings: Settings = {
@@ -77,10 +79,8 @@ export const getSettings = (): Settings => {
     // Load each setting
     Object.entries(STORAGE_KEYS).forEach(([key, storageKey]) => {
       if (['CATEGORIES', 'UNITS', 'LOCATIONS', 'SUPPLIERS', 'PROJECTS'].includes(key)) {
-        const valuesJson = localStorage.getItem(storageKey);
-        if (valuesJson) {
-          const values = JSON.parse(valuesJson);
-          
+        const values = window.electronStore.getData(storageKey);
+        if (values) {
           // Convert old string[] format to ItemWithSubcategories[]
           if (Array.isArray(values)) {
             if (values.length > 0) {
@@ -93,7 +93,7 @@ export const getSettings = (): Settings => {
                 }));
                 settings[key.toLowerCase() as keyof Settings] = newFormat;
                 // Save in new format
-                localStorage.setItem(storageKey, JSON.stringify(newFormat));
+                window.electronStore.setData(storageKey, newFormat);
               } else {
                 // Already in new format
                 settings[key.toLowerCase() as keyof Settings] = values;
@@ -106,7 +106,7 @@ export const getSettings = (): Settings => {
 
     return settings;
   } catch (error) {
-    console.error('Error getting settings from localStorage:', error);
+    console.error('Error getting settings from store:', error);
     return {
       categories: [],
       units: [],
@@ -117,21 +117,21 @@ export const getSettings = (): Settings => {
   }
 };
 
-// Save settings to localStorage
+// Save settings to store
 export const saveSettings = (settings: Settings): void => {
   try {
     Object.entries(settings).forEach(([key, values]) => {
       const storageKey = STORAGE_KEYS[key.toUpperCase() as keyof typeof STORAGE_KEYS];
       if (storageKey) {
-        localStorage.setItem(storageKey, JSON.stringify(values));
+        window.electronStore.setData(storageKey, values);
       }
     });
   } catch (error) {
-    console.error('Error saving settings to localStorage:', error);
+    console.error('Error saving settings to store:', error);
   }
 };
 
-// Save templates to localStorage
+// Save templates to store
 export const saveTemplates = (templates: ItemTemplate[]): void => {
   try {
     console.log('Saving templates:', templates);
@@ -148,30 +148,25 @@ export const saveTemplates = (templates: ItemTemplate[]): void => {
       template.templateName
     );
     
-    const serializedTemplates = JSON.stringify(validTemplates);
-    localStorage.setItem(STORAGE_KEYS.TEMPLATES, serializedTemplates);
-    
-    // Verify the save
-    const savedData = localStorage.getItem(STORAGE_KEYS.TEMPLATES);
-    console.log('Verified saved templates:', savedData);
+    window.electronStore.setData(STORAGE_KEYS.TEMPLATES, validTemplates);
+    console.log('Templates saved successfully');
   } catch (error) {
-    console.error('Error saving templates to localStorage:', error);
+    console.error('Error saving templates to store:', error);
     throw error;
   }
 };
 
-// Get templates from localStorage
+// Get templates from store
 export const getTemplates = (): ItemTemplate[] => {
   try {
-    const templatesJson = localStorage.getItem(STORAGE_KEYS.TEMPLATES);
-    console.log('Raw templates from storage:', templatesJson);
+    const templates = window.electronStore.getData(STORAGE_KEYS.TEMPLATES) as ItemTemplate[];
+    console.log('Templates loaded from store:', templates);
     
-    if (!templatesJson) {
+    if (!templates) {
       console.log('No templates found in storage');
       return [];
     }
     
-    const templates = JSON.parse(templatesJson);
     if (!Array.isArray(templates)) {
       console.error('Stored templates is not an array');
       return [];
@@ -188,7 +183,7 @@ export const getTemplates = (): ItemTemplate[] => {
     console.log('Valid templates loaded:', validTemplates);
     return validTemplates;
   } catch (error) {
-    console.error('Error getting templates from localStorage:', error);
+    console.error('Error getting templates from store:', error);
     return [];
   }
 };

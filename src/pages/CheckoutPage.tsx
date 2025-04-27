@@ -12,14 +12,8 @@ import { SettingsService } from '@/lib/settingsService'
 import type { Cabinet } from '@/types/cabinets'
 import { format } from 'date-fns'
 import { DebugLogsButton } from '@/components/DebugLogsButton'
-import { logger } from '@/utils/logger'
-
-interface LogEntry {
-  timestamp: string;
-  action: string;
-  details: Record<string, any>;
-  status: 'success' | 'error';
-}
+import { logger } from '@/lib/logging'
+import { LogEntry } from '@/lib/logging'
 
 export default function CheckoutPage() {
   const [items, setItems] = useState<InventoryItem[]>([])
@@ -47,17 +41,15 @@ export default function CheckoutPage() {
     loadData()
   }, [])
 
-  // Load recent activities
+  // Load recent activities from logger
   useEffect(() => {
-    const loadActivities = async () => {
-      const logs = await getRecentLogs(10)
-      const checkoutLogs = logs.filter(log => 
-        log.action === 'ITEM_CHECKOUT' || log.action === 'ITEM_CHECKIN'
-      )
-      setRecentActivities(checkoutLogs)
-    }
-    loadActivities()
-  }, [])
+    const logs = logger.getLogs();
+    // Filter for check-in/check-out actions by message/type
+    const checkoutLogs = logs.filter(log =>
+      log.message === 'ITEM_CHECKOUT' || log.message === 'ITEM_CHECKIN'
+    );
+    setRecentActivities(checkoutLogs);
+  }, []);
 
   const handleAction = async (action: 'check-in' | 'check-out') => {
     try {
@@ -70,16 +62,7 @@ export default function CheckoutPage() {
       if (!selectedItemId || !quantity || isNaN(Number(quantity)) || Number(quantity) <= 0) {
         const error = 'Invalid item or quantity';
         console.log(`[ERROR] ${error}`, { selectedItemId, quantity });
-        await logAction({
-          action: 'VALIDATION_ERROR',
-          details: {
-            error,
-            itemId: selectedItemId,
-            quantity,
-            cabinetId: selectedCabinetId
-          },
-          status: 'error'
-        });
+        logger.error('audit', error, { selectedItemId, quantity }, 'CheckoutPage');
         toast.error('Please select an item and enter a valid quantity');
         return;
       }
@@ -87,16 +70,7 @@ export default function CheckoutPage() {
       if (!selectedCabinetId) {
         const error = 'No cabinet selected';
         console.log(`[ERROR] ${error}`);
-        await logAction({
-          action: 'VALIDATION_ERROR',
-          details: {
-            error,
-            itemId: selectedItemId,
-            quantity,
-            cabinetId: selectedCabinetId
-          },
-          status: 'error'
-        });
+        logger.error('audit', error, {}, 'CheckoutPage');
         toast.error('Please select a cabinet');
         return;
       }
@@ -105,14 +79,7 @@ export default function CheckoutPage() {
       if (!selectedCabinet) {
         const error = 'Selected cabinet not found';
         console.log(`[ERROR] ${error}`, { cabinetId: selectedCabinetId });
-        await logAction({
-          action: 'CABINET_NOT_FOUND',
-          details: {
-            error,
-            cabinetId: selectedCabinetId
-          },
-          status: 'error'
-        });
+        logger.error('audit', error, { cabinetId: selectedCabinetId }, 'CheckoutPage');
         toast.error('Selected cabinet not found');
         return;
       }
@@ -126,16 +93,7 @@ export default function CheckoutPage() {
       } else {
         const error = 'Cabinet does not require check-in/out';
         console.log(`[ERROR] ${error}`, { cabinet: selectedCabinet });
-        await logAction({
-          action: 'INVALID_CABINET_TYPE',
-          details: {
-            error,
-            cabinetId: selectedCabinetId,
-            cabinetName: selectedCabinet.name,
-            isSecure: selectedCabinet.isSecure
-          },
-          status: 'error'
-        });
+        logger.error('audit', error, { cabinetId: selectedCabinetId, cabinetName: selectedCabinet.name, isSecure: selectedCabinet.isSecure }, 'CheckoutPage');
         toast.error('This cabinet does not require check-in/out');
         return;
       }
@@ -173,18 +131,14 @@ export default function CheckoutPage() {
       setItems(updatedItems)
       
       // Log the activity
-      await logAction({
-        action: action === 'check-out' ? 'ITEM_CHECKOUT' : 'ITEM_CHECKIN',
-        details: {
-          itemId: selectedItemId,
-          itemName: selectedItem?.name,
-          quantity: numQuantity,
-          cabinetId: selectedCabinetId,
-          cabinetName: selectedCabinet.name,
-          performedBy: user?.username
-        },
-        status: 'success'
-      })
+      logger.info('audit', action === 'check-out' ? 'ITEM_CHECKOUT' : 'ITEM_CHECKIN', {
+        itemId: selectedItemId,
+        itemName: selectedItem?.name,
+        quantity: numQuantity,
+        cabinetId: selectedCabinetId,
+        cabinetName: selectedCabinet.name,
+        performedBy: user?.username
+      }, 'CheckoutPage');
       
       toast.success(`Successfully ${action === 'check-out' ? 'checked out' : 'checked in'} ${numQuantity} ${selectedItem?.name}`)
       
@@ -194,11 +148,11 @@ export default function CheckoutPage() {
       setQuantity('')
 
       // Refresh activities
-      const logs = await getRecentLogs(10)
-      const checkoutLogs = logs.filter(log => 
-        log.action === 'ITEM_CHECKOUT' || log.action === 'ITEM_CHECKIN'
-      )
-      setRecentActivities(checkoutLogs)
+      const logs = logger.getLogs();
+      const checkoutLogs = logs.filter(log =>
+        log.message === 'ITEM_CHECKOUT' || log.message === 'ITEM_CHECKIN'
+      );
+      setRecentActivities(checkoutLogs);
     } catch (error) {
       console.error('Error during check-in/out:', error)
       toast.error('Failed to process check-in/out')
@@ -210,27 +164,13 @@ export default function CheckoutPage() {
   // Add logging for selection changes
   const handleCabinetChange = async (cabinetId: string) => {
     console.log('[INFO] Cabinet selected', { cabinetId });
-    await logAction({
-      action: 'CABINET_SELECTED',
-      details: {
-        cabinetId,
-        cabinetName: cabinets.find(c => c.id === cabinetId)?.name
-      },
-      status: 'success'
-    });
+    logger.info('audit', 'CABINET_SELECTED', { cabinetId, cabinetName: cabinets.find(c => c.id === cabinetId)?.name }, 'CheckoutPage');
     setSelectedCabinetId(cabinetId);
   };
 
   const handleItemChange = async (itemId: string) => {
     console.log('[INFO] Item selected', { itemId });
-    await logAction({
-      action: 'ITEM_SELECTED',
-      details: {
-        itemId,
-        itemName: items.find(i => i.id === itemId)?.name
-      },
-      status: 'success'
-    });
+    logger.info('audit', 'ITEM_SELECTED', { itemId, itemName: items.find(i => i.id === itemId)?.name }, 'CheckoutPage');
     setSelectedItemId(itemId);
   };
 
@@ -319,17 +259,7 @@ export default function CheckoutPage() {
               onDownload={async () => {
                 try {
                   // Log the action
-                  await logAction({
-                    action: 'DOWNLOAD_LOGS',
-                    details: {
-                      page: 'checkout',
-                      timestamp: new Date().toISOString()
-                    },
-                    status: 'success'
-                  });
-
-                  // Use our logger to save the logs
-                  await logger.downloadLogs('checkout');
+                  logger.info('audit', 'DOWNLOAD_LOGS', { page: 'checkout', timestamp: new Date().toISOString() }, 'CheckoutPage');
                 } catch (error) {
                   console.error('Error downloading logs:', error);
                   toast.error('Failed to download logs');
@@ -354,7 +284,7 @@ export default function CheckoutPage() {
                   <div key={index} className="flex justify-between items-center py-2 border-b last:border-0">
                     <div>
                       <p className="font-medium">
-                        {activity.action === 'ITEM_CHECKOUT' ? 'Checked Out' : 'Checked In'}: {activity.details.quantity}x {activity.details.itemName}
+                        {activity.message === 'ITEM_CHECKOUT' ? 'Checked Out' : 'Checked In'}: {activity.details.quantity}x {activity.details.itemName}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Cabinet: {activity.details.cabinetName} | By: {activity.details.performedBy}

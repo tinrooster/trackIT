@@ -133,6 +133,20 @@ pnpm install
 **Cause**: Running the application in an environment where localStorage is not available.
 **Solution**: Ensure you're running the application in a web browser with localStorage support.
 
+## Renderer Errors: __dirname is not defined / path externalized
+
+**Symptoms**
+- Blank screen in the app
+- Console error: `Uncaught ReferenceError: __dirname is not defined`
+- Console warning: `Module "path" has been externalized for browser compatibility. Cannot access "path.join" in client code.`
+
+**Cause**
+- Importing or using `electron-store`, `fs`, `path`, or other Node.js modules in your renderer (src/) code.
+
+**Solution**
+- Remove all usage of Node.js modules from your renderer code. Only use them in the main process or expose safe APIs via IPC/preload.
+- For persistent logging or storage, use IPC to communicate with the main process.
+
 ## Still Having Issues?
 
 If you've tried the solutions above and are still experiencing problems:

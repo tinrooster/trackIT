@@ -12,9 +12,8 @@ import { Trash2, Edit2 } from 'lucide-react';
 import { getItems } from '@/lib/storageService';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { logger } from '@/utils/logger';
+import { logger } from '@/lib/logging';
 import { DebugLogsButton } from '@/components/DebugLogsButton'
-import { logAction } from '@/lib/logging'
 
 // Helper function to flatten categories
 function flattenCategories(categories: CategoryNode[]): string[] {
@@ -136,12 +135,12 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
     if (batchEditValues.location && batchEditValues.location !== 'nochange' && cabinets) {
       // Get the base location name (last part of the path)
       const locationName = batchEditValues.location.split('/').pop() || '';
-      logger.debug('Looking for cabinets for location', { locationName });
-      logger.debug('Available cabinets', { cabinets });
+      logger.info('system', 'Looking for cabinets for location', { locationName });
+      logger.info('system', 'Available cabinets', { cabinets });
       
       // Filter cabinets directly by locationId matching the location name
       const locationCabinets = cabinets.filter(cabinet => cabinet.locationId === locationName);
-      logger.debug('Found cabinets for location', { locationCabinets });
+      logger.info('system', 'Found cabinets for location', { locationCabinets });
       setAvailableCabinets(locationCabinets);
     } else {
       setAvailableCabinets([]);
@@ -184,9 +183,9 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
       
       // Show success message
       toast.success(`Deleted ${selectedItems.length} items`);
-      logger.info('Successfully deleted items', { count: selectedItems.length });
+      logger.info('system', 'Successfully deleted items', { count: selectedItems.length });
     } catch (error) {
-      logger.error('Error in batch delete', error);
+      logger.error('system', 'Error in batch delete', error);
       console.error('Error in batch delete:', error);
       toast.error('Failed to delete items');
     }
@@ -198,7 +197,7 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
     try {
       // Get current items from storage
       const currentItems = getItems();
-      logger.debug('Starting batch edit', { 
+      logger.info('system', 'Starting batch edit', { 
         selectedCount: selectedItems.length,
         batchEditValues 
       });
@@ -238,7 +237,7 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
 
         if (Object.keys(updates).length > 0) {
           successCount++;
-          logger.debug('Updating item', { itemId: item.id, updates });
+          logger.info('system', 'Updating item', { itemId: item.id, updates });
           return { 
             ...item, 
             ...updates, 
@@ -264,11 +263,11 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
         
         // Show success message
         toast.success(`Successfully updated ${successCount} item${successCount !== 1 ? 's' : ''}`);
-        logger.info('Successfully updated items', { count: successCount });
+        logger.info('system', 'Successfully updated items', { count: successCount });
       }
 
     } catch (error) {
-      logger.error('Error in batch edit', error);
+      logger.error('system', 'Error in batch edit', error);
       console.error('Error in batch edit:', error);
       toast.error('Failed to update items');
     } finally {
@@ -516,16 +515,6 @@ export default function BatchOperations({ selectedItems, onClearSelection, onIte
           <DebugLogsButton 
             onDownload={async () => {
               try {
-                // Log the action
-                await logAction({
-                  action: 'DOWNLOAD_LOGS',
-                  details: {
-                    component: 'batch-operations',
-                    timestamp: new Date().toISOString()
-                  },
-                  status: 'success'
-                });
-
                 // Use our logger to save the logs
                 await logger.downloadLogs('batch-operations');
               } catch (error) {

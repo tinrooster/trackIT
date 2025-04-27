@@ -24,7 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { SettingsService, defaultSettingsSchema, DefaultSettings } from "@/lib/settingsService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogViewer } from './LogViewer';
+import { SystemLogs } from './SystemLogs';
 import { getRecentLogs } from '@/lib/logging';
 
 interface SettingsPageProps {
@@ -281,7 +281,7 @@ export function SettingsPage({ activeTab = "general" }: SettingsPageProps) {
           View recent system activity and troubleshoot issues
         </p>
       </div>
-      <LogViewer logs={logs} />
+      <SystemLogs />
     </div>
   );
 

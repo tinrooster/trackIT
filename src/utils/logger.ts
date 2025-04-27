@@ -2,13 +2,21 @@ import { toast } from 'sonner';
 
 declare global {
   interface Window {
-    electronAPI: {
-      saveLogs: (filename: string, content: string) => Promise<{ success: boolean; path?: string; error?: string; }>;
+    electronAPI?: {
+      saveLogs?: (filename: string, content: string) => Promise<{ success: boolean; path?: string; error?: string; }>;
     }
   }
 }
 
-class Logger {
+export interface Logger {
+  log: (message: string) => void;
+  error: (message: string) => void;
+  info: (message: string) => void;
+  warn: (message: string) => void;
+  downloadLogs: (filenameOverride?: string) => Promise<void>;
+}
+
+class FileLogger implements Logger {
   private logs: string[] = [];
   private context: string = '';
 
@@ -33,17 +41,29 @@ class Logger {
     const timestamp = new Date().toISOString();
     const logEntry = `[${timestamp}] ${this.context ? `[${this.context}] ` : ''}${message}`;
     this.logs.push(logEntry);
+    console.log(message);
   }
 
-  error(message: string, error?: any) {
-    const errorMessage = error ? `${message}: ${error.message || error}` : message;
-    this.log(`ERROR: ${errorMessage}`);
-    if (error?.stack) {
-      this.log(`Stack trace: ${error.stack}`);
-    }
+  error(message: string) {
+    const timestamp = new Date().toISOString();
+    const errorMessage = message;
+    this.logs.push(`[${timestamp}] ERROR: ${errorMessage}`);
+    console.error(errorMessage);
   }
 
-  async downloadLogs() {
+  info(message: string) {
+    const timestamp = new Date().toISOString();
+    this.logs.push(`[${timestamp}] INFO: ${message}`);
+    console.info(message);
+  }
+
+  warn(message: string) {
+    const timestamp = new Date().toISOString();
+    this.logs.push(`[${timestamp}] WARN: ${message}`);
+    console.warn(message);
+  }
+
+  async downloadLogs(filenameOverride?: string): Promise<void> {
     try {
       // Add some debug information
       console.debug('Starting downloadLogs');
@@ -51,12 +71,19 @@ class Logger {
       console.debug('electronAPI status:', !!window.electronAPI);
 
       if (!window.electronAPI?.saveLogs) {
-        throw new Error('electronAPI.saveLogs is not available. This likely means the preload script is not properly configured.');
+        toast.error('Electron API not available. Logs will be printed to the console.');
+        console.log('Logs:', this.logs.join('\n'));
+        return;
       }
 
-      const date = new Date().toISOString().split('T')[0];
-      const time = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
-      const filename = `${date}_${time}_${this.context || 'app'}.log`;
+      let filename: string;
+      if (filenameOverride) {
+        filename = filenameOverride;
+      } else {
+        const date = new Date().toISOString().split('T')[0];
+        const time = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
+        filename = `${date}_${time}_${this.context || 'app'}.log`;
+      }
       const content = this.logs.join('\n');
 
       console.debug('Attempting to save logs...', { filename });
@@ -86,4 +113,4 @@ class Logger {
 }
 
 // Create and export a single instance
-export const logger = new Logger(); 
+export const logger = new FileLogger(); 

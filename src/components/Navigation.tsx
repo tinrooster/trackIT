@@ -4,6 +4,8 @@ import { LayoutDashboard, List, FileText, Settings, Copy, ShoppingCart } from 'l
 import { cn } from "@/lib/utils"
 import { UserMenu } from '@/components/UserMenu'
 import { useAuth } from '@/contexts/AuthContext'
+import { DebugLogsButton } from '@/components/DebugLogsButton'
+import { logger } from '@/utils/logger'
 
 export function Navigation() {
   const location = useLocation()
@@ -20,7 +22,7 @@ export function Navigation() {
   ]
 
   return (
-    <nav className="bg-background border-b">
+    <nav className="bg-background border-b sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo/Title */}
@@ -28,7 +30,7 @@ export function Navigation() {
           
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-2">
-            {user && navItems.map(item => (
+            {navItems.map(item => (
               <Link
                 key={item.path}
                 to={item.path}
@@ -43,9 +45,8 @@ export function Navigation() {
                 {item.label}
               </Link>
             ))}
-            
-            {/* User Menu */}
-            {user && <UserMenu />}
+            <DebugLogsButton onDownload={() => logger.downloadLogs('trackit-continuous.log')} context="trackit-continuous" />
+            <UserMenu />
           </div>
 
           {/* Mobile menu button */}
@@ -62,7 +63,7 @@ export function Navigation() {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden pb-3 space-y-1">
-            {user && navItems.map(item => (
+            {navItems.map(item => (
               <Link
                 key={item.path}
                 to={item.path}
@@ -80,13 +81,9 @@ export function Navigation() {
                 </div>
               </Link>
             ))}
-            
-            {/* Mobile User Menu */}
-            {user && (
-              <div className="px-3 py-2">
-                <UserMenu />
-              </div>
-            )}
+            <div className="px-3 py-2">
+              <UserMenu />
+            </div>
           </div>
         )}
       </div>

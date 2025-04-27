@@ -1,305 +1,158 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { comparePasswords } from '../utils/passwordUtils';
 import { toast } from 'react-hot-toast';
-import { hashPassword, comparePasswords } from '../utils/passwordUtils';
+import { logger } from '../utils/logger';
 
-export interface User {
-  id: string;
+interface User {
   username: string;
-  displayName: string;
-  role: 'admin' | 'user' | 'viewer';
-  securityQuestion?: string;
-  securityAnswer?: string;
-  phoneExtension?: string;
-  phoneNumber?: string;
-}
-
-export interface UserWithPassword extends User {
   password: string;
+  securityQuestion: string;
+  securityAnswer: string;
 }
 
 interface AuthContextType {
-  user: User | null;
-  isAuthenticated: boolean;
-  isPersistent: boolean;
-  isLoading: boolean;
-  login: (username: string, password: string, remember: boolean) => Promise<boolean>;
+  currentUser: User | null;
+  loading: boolean;
+  login: (username: string, password: string, rememberMe: boolean) => Promise<boolean>;
   logout: () => void;
-  setPersistence: (isPersistent: boolean) => void;
   resetPassword: (username: string, securityAnswer: string, newPassword: string) => Promise<boolean>;
-  verifySecurityAnswer: (username: string, answer: string) => Promise<boolean>;
-  adminResetPassword: (username: string, newPassword: string) => Promise<boolean>;
-}
-
-interface AuthProviderProps {
-  children: ReactNode;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Local storage keys
-const USER_STORAGE_KEY = 'inventory-user';
-const PERSISTENCE_KEY = 'inventory-auth-persistent';
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
 
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isPersistent, setIsPersistent] = useState(false);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Check for existing session on mount
   useEffect(() => {
-    const checkExistingSession = () => {
+    const initializeAuth = async () => {
       try {
-        // Check if we have any users, if not create a default admin
-        const storedUsers = localStorage.getItem('inventory-users');
+        const storedUsers = await window.electron.store.get('users');
         if (!storedUsers) {
-          const defaultAdmin: UserWithPassword = {
-            id: crypto.randomUUID(),
+          // Create default admin account if no users exist
+          const defaultAdmin = {
             username: 'admin',
-            displayName: 'Administrator',
-            role: 'admin',
-            password: 'admin', // Default password
+            password: 'admin',
             securityQuestion: 'What is the default password?',
             securityAnswer: 'admin'
           };
-          localStorage.setItem('inventory-users', JSON.stringify([defaultAdmin]));
-          toast.info('Created default admin account (username: admin, password: admin)');
+          await window.electron.store.set('users', [defaultAdmin]);
+          toast.success('Default admin account created. Username: admin, Password: admin');
+          logger.info('Created default admin account');
         }
 
-        // Check if we have a persistent login setting
-        const persistentSetting = localStorage.getItem(PERSISTENCE_KEY);
-        const shouldPersist = persistentSetting === 'true';
-        setIsPersistent(shouldPersist);
-
-        // Try to get stored user
-        const storedUser = shouldPersist 
-          ? localStorage.getItem(USER_STORAGE_KEY) 
-          : sessionStorage.getItem(USER_STORAGE_KEY);
-
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser) as User;
-          setUser(parsedUser);
-          console.log('Restored user session:', parsedUser.username);
+        const rememberedUser = await window.electron.store.get('rememberedUser');
+        if (rememberedUser) {
+          setCurrentUser(rememberedUser);
+          logger.info('Restored remembered user session');
         }
       } catch (error) {
-        console.error('Error restoring session:', error);
-        // Clear potentially corrupted storage
-        localStorage.removeItem(USER_STORAGE_KEY);
-        sessionStorage.removeItem(USER_STORAGE_KEY);
+        logger.error('Error initializing auth:', error);
+        toast.error('Error initializing authentication');
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
 
-    checkExistingSession();
+    initializeAuth();
   }, []);
 
-  const login = async (username: string, password: string, remember: boolean): Promise<boolean> => {
-    setIsLoading(true);
-
+  const login = async (username: string, password: string, rememberMe: boolean): Promise<boolean> => {
+    logger.info('Login attempt for user:', username);
+    setLoading(true);
     try {
-      // Get stored users from localStorage
-      const storedUsers = localStorage.getItem('inventory-users');
-      if (!storedUsers) {
-        // Create default admin if no users exist
-        const defaultAdmin: UserWithPassword = {
-          id: crypto.randomUUID(),
-          username: 'admin',
-          displayName: 'Administrator',
-          role: 'admin',
-          password: 'admin',
-          securityQuestion: 'What is the default password?',
-          securityAnswer: 'admin'
-        };
-        localStorage.setItem('inventory-users', JSON.stringify([defaultAdmin]));
-        toast.info('Created default admin account (username: admin, password: admin)');
-        
-        // Try login again with the same credentials
-        return login(username, password, remember);
-      }
+      const users = await window.electron.store.get('users') as User[];
+      console.log('Retrieved users:', users);
 
-      const users: UserWithPassword[] = JSON.parse(storedUsers);
-      const userRecord = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-      
+      const userRecord = users.find(u => u.username === username);
       if (!userRecord) {
+        logger.warn('Login failed: User not found');
         toast.error('Invalid username or password');
         return false;
       }
 
-      // Compare passwords directly since we're not using real hashing in demo
-      if (!comparePasswords(password, userRecord.password)) {
+      const passwordMatch = await comparePasswords(password, userRecord.password);
+      console.log('Password match result:', passwordMatch);
+
+      if (passwordMatch) {
+        setCurrentUser(userRecord);
+        if (rememberMe) {
+          await window.electron.store.set('rememberedUser', userRecord);
+          logger.info('User session remembered');
+        }
+        logger.info('Login successful');
+        toast.success('Login successful');
+        return true;
+      } else {
+        logger.warn('Login failed: Invalid password');
         toast.error('Invalid username or password');
         return false;
       }
-
-      // Set persistence preference
-      setIsPersistent(remember);
-      localStorage.setItem(PERSISTENCE_KEY, String(remember));
-
-      // Store user in appropriate storage (without password)
-      const { password: _, ...userWithoutPassword } = userRecord;
-      const storage = remember ? localStorage : sessionStorage;
-      storage.setItem(USER_STORAGE_KEY, JSON.stringify(userWithoutPassword));
-      
-      // Update state
-      setUser(userWithoutPassword);
-      toast.success(`Welcome, ${userWithoutPassword.displayName}`);
-      return true;
     } catch (error) {
-      console.error('Login error:', error);
-      toast.error('Login failed. Please try again.');
+      logger.error('Login error:', error);
+      toast.error('An error occurred during login');
       return false;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const logout = () => {
-    // Clear user from storage
-    localStorage.removeItem(USER_STORAGE_KEY);
-    sessionStorage.removeItem(USER_STORAGE_KEY);
-    
-    // Clear state
-    setUser(null);
-    toast.info('You have been logged out');
-  };
-
-  const setPersistence = (value: boolean) => {
-    setIsPersistent(value);
-    localStorage.setItem(PERSISTENCE_KEY, String(value));
-    
-    // If changing to persistent and we have a user, save to localStorage
-    if (value && user) {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-      sessionStorage.removeItem(USER_STORAGE_KEY);
-    } 
-    // If changing to non-persistent and we have a user, save to sessionStorage
-    else if (!value && user) {
-      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-      localStorage.removeItem(USER_STORAGE_KEY);
-    }
-  };
-
-  const verifySecurityAnswer = async (username: string, answer: string): Promise<boolean> => {
-    try {
-      const storedUsers = localStorage.getItem('inventory-users');
-      if (!storedUsers) {
-        toast.error('No users found in the system');
-        return false;
-      }
-
-      const users: UserWithPassword[] = JSON.parse(storedUsers);
-      const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-      
-      if (!user) {
-        toast.error('User not found');
-        return false;
-      }
-
-      if (!user.securityAnswer) {
-        toast.error('No security question set up for this user');
-        return false;
-      }
-
-      return user.securityAnswer.toLowerCase() === answer.toLowerCase();
-    } catch (error) {
-      console.error('Security verification error:', error);
-      return false;
-    }
+  const logout = async () => {
+    setCurrentUser(null);
+    await window.electron.store.delete('rememberedUser');
+    logger.info('User logged out');
+    toast.success('Logged out successfully');
   };
 
   const resetPassword = async (username: string, securityAnswer: string, newPassword: string): Promise<boolean> => {
     try {
-      const storedUsers = localStorage.getItem('inventory-users');
-      if (!storedUsers) {
-        toast.error('No users found in the system');
-        return false;
-      }
-
-      const users: UserWithPassword[] = JSON.parse(storedUsers);
-      const userIndex = users.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+      const users = await window.electron.store.get('users') as User[];
+      const userIndex = users.findIndex(u => u.username === username);
       
       if (userIndex === -1) {
+        logger.warn('Password reset failed: User not found');
         toast.error('User not found');
         return false;
       }
 
-      // Verify security answer
-      if (users[userIndex].securityAnswer?.toLowerCase() !== securityAnswer.toLowerCase()) {
-        toast.error('Security answer is incorrect');
+      if (users[userIndex].securityAnswer !== securityAnswer) {
+        logger.warn('Password reset failed: Incorrect security answer');
+        toast.error('Incorrect security answer');
         return false;
       }
 
-      // Update the user's password
       users[userIndex].password = newPassword;
-      localStorage.setItem('inventory-users', JSON.stringify(users));
+      await window.electron.store.set('users', users);
       
+      logger.info('Password reset successful');
       toast.success('Password reset successful');
       return true;
     } catch (error) {
-      console.error('Password reset error:', error);
-      toast.error('Failed to reset password');
-      return false;
-    }
-  };
-
-  const adminResetPassword = async (username: string, newPassword: string): Promise<boolean> => {
-    if (!user || user.role !== 'admin') {
-      toast.error("Only admin users can reset passwords");
-      return false;
-    }
-
-    try {
-      const storedUsers = localStorage.getItem('inventory-users');
-      if (!storedUsers) {
-        toast.error('No users found in the system');
-        return false;
-      }
-
-      const users: UserWithPassword[] = JSON.parse(storedUsers);
-      const userIndex = users.findIndex(u => u.username === username);
-
-      if (userIndex === -1) {
-        toast.error("User not found");
-        return false;
-      }
-
-      // Update password
-      const hashedPassword = await hashPassword(newPassword);
-      users[userIndex] = {
-        ...users[userIndex],
-        password: hashedPassword
-      };
-
-      localStorage.setItem('inventory-users', JSON.stringify(users));
-      toast.success(`Password reset for user ${username}`);
-      return true;
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      toast.error("Failed to reset password");
+      logger.error('Password reset error:', error);
+      toast.error('An error occurred during password reset');
       return false;
     }
   };
 
   const value = {
-    user,
-    isAuthenticated: !!user,
-    isPersistent,
-    isLoading,
+    currentUser,
+    loading,
     login,
     logout,
-    setPersistence,
-    resetPassword,
-    verifySecurityAnswer,
-    adminResetPassword
+    resetPassword
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth(): AuthContextType {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }

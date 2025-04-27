@@ -25,11 +25,12 @@
     /* Paths */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["src/*"],
+      "electron/*": ["electron/*"]
     },
     "forceConsistentCasingInFileNames": true,
     "types": ["vite/client", "react", "react-dom"]
   },
-  "include": ["src"],
+  "include": ["src", "electron"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

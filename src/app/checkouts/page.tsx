@@ -6,7 +6,7 @@ import { CheckoutHistory } from '@/components/cabinets/CheckoutHistory';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Filter } from "lucide-react";
-import { logAction } from '@/lib/logging';
+import { logger } from '@/lib/logging';
 
 // Mock items data - replace with actual data fetching
 const mockItems = [
@@ -18,7 +18,7 @@ export default function CheckoutsPage() {
   const handleCheckIn = async (values: { itemId: string, quantity: number }) => {
     try {
       // Implement check-in logic here
-      await logAction({
+      await logger.info({
         action: 'check-in',
         details: {
           itemId: values.itemId,
@@ -27,7 +27,7 @@ export default function CheckoutsPage() {
         status: 'success',
       });
     } catch (error) {
-      await logAction({
+      await logger.error({
         action: 'check-in',
         details: {
           itemId: values.itemId,
@@ -42,7 +42,7 @@ export default function CheckoutsPage() {
   const handleCheckOut = async (values: { itemId: string, quantity: number }) => {
     try {
       // Implement check-out logic here
-      await logAction({
+      await logger.info({
         action: 'check-out',
         details: {
           itemId: values.itemId,
@@ -51,7 +51,7 @@ export default function CheckoutsPage() {
         status: 'success',
       });
     } catch (error) {
-      await logAction({
+      await logger.error({
         action: 'check-out',
         details: {
           itemId: values.itemId,
