@@ -4,8 +4,14 @@ console.log("Preload script starting...");
 electron.contextBridge.exposeInMainWorld(
   "electron",
   {
-    ipcRenderer: {
-      invoke: (channel, ...args) => electron.ipcRenderer.invoke(channel, ...args)
+    sendMessage: (channel, data) => {
+      const validChannels = ["toMain"];
+      if (validChannels.includes(channel)) {
+        electron.ipcRenderer.send(channel, data);
+      }
+    },
+    onMessage: (callback) => {
+      electron.ipcRenderer.on("fromMain", (event, data) => callback(data));
     }
   }
 );

@@ -27,6 +27,7 @@ const formSchema = z.object({
   subcategory: z.string().optional(),
   unit: z.string().min(1, "Unit is required"),
   location: z.string().min(1, "Location is required"),
+  locationSubcategory: z.string().optional(),
   cabinet: z.string().optional(),
   quantity: z.coerce.number().min(0, "Quantity cannot be negative"),
   supplier: z.string().optional(),
@@ -429,7 +430,7 @@ export function EditItemForm({
   const initialLocationName = React.useMemo(() => {
     const locationObj = locations.find(loc => loc.id === item.location);
     console.log(`Initial location ID: ${item.location}, found name: ${locationObj?.name || 'NOT FOUND'}`);
-    return locationObj?.name || '';
+    return locationObj?.id || '';
   }, [item.location, locations]);
 
   const defaultValues = React.useMemo(() => {
@@ -468,7 +469,8 @@ export function EditItemForm({
       category: item.category || '',
       subcategory: item.subcategory || '',
       unit: item.unit || '',
-      location: initialLocationName, // Use location name instead of ID
+      location: initialLocationName, // Use location ID
+      locationSubcategory: item.locationSubcategory || '',
       cabinet: item.cabinet || '',
       quantity: item.quantity || 0,
       supplier: item.supplier || '',

@@ -1,10 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
-import fs from 'fs';
 import * as fsPromises from 'fs/promises';
-import { fileURLToPath } from 'url';
 
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
+declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -16,63 +14,59 @@ let mainWindow: BrowserWindow | null = null;
 
 const createWindow = () => {
   console.log('Creating window with preload script...');
+  console.log('Dev server URL:', MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  console.log('Vite name:', MAIN_WINDOW_VITE_NAME);
   
-  // Get the correct preload script path
-  const preloadPath = path.join(__dirname, 'preload.js');
-  console.log('Preload script path:', preloadPath);
-  console.log('Preload script exists:', fs.existsSync(preloadPath));
-
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 900,
+    height: 680,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: preloadPath,
-      sandbox: false // Disable sandbox to ensure preload script works
-    },
+      preload: path.join(__dirname, '../preload/preload.js')
+    }
   });
 
-  // and load the index.html of the app.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  // In development, load from localhost
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+    // In production, load the index.html file
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  // Set up IPC handlers
+  ipcMain.on('toMain', (event, data) => {
+    // Handle messages from renderer
+    console.log('Received in main:', data);
+    
+    // Example of sending a response back
+    if (mainWindow) {
+      mainWindow.webContents.send('fromMain', { 
+        response: `Processed: ${data}` 
+      });
+    }
+  });
 
   // Log when the window is ready
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('Window loaded, checking preload...');
     mainWindow?.webContents.executeJavaScript('console.log("electronAPI available:", !!window.electronAPI)');
   });
-};
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.on('ready', () => {
-  console.log('Setting up IPC handlers...');
-  
-  // Add IPC handler for saving logs
+  // Handle file system operations
   ipcMain.handle('save-logs', async (_event, { filename, content }) => {
-    console.log('Received save-logs request:', { filename });
-    
     try {
-      // Create logs directory in project root if it doesn't exist
       const logsDir = path.join(app.getAppPath(), 'logs');
-      console.log('Creating logs directory:', logsDir);
       await fsPromises.mkdir(logsDir, { recursive: true });
-
-      // Save file directly to logs directory
       const filePath = path.join(logsDir, filename);
-      console.log('Saving logs to:', filePath);
       await fsPromises.writeFile(filePath, content, 'utf-8');
-      
-      console.log('Logs saved successfully');
       return { success: true, path: filePath };
     } catch (error) {
       console.error('Error saving logs:', error);
@@ -82,7 +76,13 @@ app.on('ready', () => {
       };
     }
   });
+};
 
+// This method will be called when Electron has finished
+// initialization and is ready to create browser windows.
+// Some APIs can only be used after this event occurs.
+app.whenReady().then(() => {
+  console.log('Setting up IPC handlers...');
   createWindow();
 });
 

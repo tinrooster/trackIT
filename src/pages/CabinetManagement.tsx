@@ -13,6 +13,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import { QRCodeManager } from "@/components/cabinets/QRCodeManager";
 import { CheckoutHistory } from "@/components/cabinets/CheckoutHistory";
+import { SettingsService } from "@/lib/settingsService";
 
 interface Cabinet {
   id: string;
@@ -99,7 +100,7 @@ function SortableCabinet({ cabinet, onEdit, onDelete }: SortableCabinetProps) {
   );
 }
 
-export default function CabinetManagement({ locations }: CabinetManagementProps) {
+export default function CabinetManagement({ locations = [] }: CabinetManagementProps) {
   const [activeTab, setActiveTab] = React.useState('cabinets')
   const [cabinets, setCabinets] = React.useState<Cabinet[]>([])
   const [settings, setSettings] = React.useState<DefaultSettings>({
@@ -133,25 +134,26 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
 
   // Load cabinets from localStorage
   React.useEffect(() => {
-    try {
-      const savedCabinets = localStorage.getItem('cabinets');
-      console.log('Loading saved cabinets:', savedCabinets);
-      if (savedCabinets) {
-        const parsed = JSON.parse(savedCabinets);
-        console.log('Parsed cabinets:', parsed);
-        setCabinets(parsed);
+    const loadCabinets = async () => {
+      try {
+        const loadedCabinets = await SettingsService.getCabinets();
+        console.log('Loaded cabinets:', loadedCabinets);
+        setCabinets(loadedCabinets);
+      } catch (error) {
+        console.error('Error loading cabinets:', error);
+        toast.error("Failed to load cabinets");
       }
-    } catch (error) {
-      console.error('Error loading cabinets:', error);
-      toast.error("Failed to load cabinets");
-    }
+    };
+    loadCabinets();
   }, []);
 
   // Save cabinets to localStorage
-  const saveCabinets = (newCabinets: Cabinet[]) => {
+  const saveCabinets = async (newCabinets: Cabinet[]) => {
     try {
       console.log('Attempting to save cabinets:', newCabinets);
-      localStorage.setItem('cabinets', JSON.stringify(newCabinets));
+      for (const cabinet of newCabinets) {
+        await SettingsService.saveCabinet(cabinet);
+      }
       setCabinets(newCabinets);
       console.log('Cabinets saved successfully');
     } catch (error) {
@@ -397,7 +399,7 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
                         <SelectValue placeholder="Select a location" />
                       </SelectTrigger>
                       <SelectContent>
-                        {locations.map((location) => (
+                        {(locations || []).map((location) => (
                           <SelectItem key={location} value={location}>
                             {location}
                           </SelectItem>
@@ -450,7 +452,10 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
                           <QRCodeManager
                             cabinetId={cabinet.id}
                             cabinetName={cabinet.name}
+                            description={cabinet.description || ''}
+                            locationId={cabinet.locationId}
                             isSecure={cabinet.isSecure}
+                            notes={cabinet.notes}
                             requireCheckout={settings.requireCheckoutForSecureCabinets}
                             onCheckIn={(itemId, quantity) => handleCheckIn(cabinet.id, itemId, quantity)}
                             onCheckOut={(itemId, quantity) => handleCheckOut(cabinet.id, itemId, quantity)}
@@ -487,7 +492,7 @@ export default function CabinetManagement({ locations }: CabinetManagementProps)
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {locations.map(location => (
+                    {(locations || []).map(location => (
                       <SelectItem key={location} value={location}>
                         {location}
                       </SelectItem>

@@ -7,8 +7,34 @@ console.log('Preload script starting...');
 contextBridge.exposeInMainWorld(
   'electron',
   {
-    ipcRenderer: {
-      invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args)
+    sendMessage: (channel: string, data: any) => {
+      // whitelist channels
+      const validChannels = ['toMain'];
+      if (validChannels.includes(channel)) {
+        ipcRenderer.send(channel, data);
+      }
+    },
+    onMessage: (callback: (data: any) => void) => {
+      ipcRenderer.on('fromMain', (event, data) => callback(data));
+    }
+  }
+);
+
+// Expose file system functionality
+contextBridge.exposeInMainWorld(
+  'fileSystem',
+  {
+    saveLogs: async (filename: string, content: string) => {
+      try {
+        const result = await ipcRenderer.invoke('save-logs', { filename, content });
+        return result;
+      } catch (error) {
+        console.error('Error in saveLogs:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error occurred'
+        };
+      }
     }
   }
 );

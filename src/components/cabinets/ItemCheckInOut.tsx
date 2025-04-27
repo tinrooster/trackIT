@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { useInventory } from "@/hooks/useInventory";
 
 const formSchema = z.object({
   itemId: z.string().min(1, "Item is required"),
@@ -36,11 +37,28 @@ const formSchema = z.object({
 type FormSchema = z.infer<typeof formSchema>;
 
 interface ItemCheckInOutProps {
-  onSubmit: (values: FormSchema) => void;
-  items: Array<{ id: string; name: string }>;
+  cabinetId: string;
+  cabinetName: string;
+  isSecure: boolean;
+  locationId: string;
+  onCheckIn: (itemId: string, quantity: number) => void;
+  onCheckOut: (itemId: string, quantity: number) => void;
 }
 
-export function ItemCheckInOut({ onSubmit, items }: ItemCheckInOutProps) {
+export function ItemCheckInOut({ 
+  cabinetId, 
+  cabinetName, 
+  isSecure,
+  locationId,
+  onCheckIn,
+  onCheckOut 
+}: ItemCheckInOutProps) {
+  const { items } = useInventory();
+  
+  const locationItems = React.useMemo(() => {
+    return items.filter(item => item.location === locationId);
+  }, [items, locationId]);
+  
   const form = useForm<FormSchema>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -50,11 +68,20 @@ export function ItemCheckInOut({ onSubmit, items }: ItemCheckInOutProps) {
     },
   });
 
+  const onSubmit = (values: FormSchema) => {
+    if (values.action === "check-in") {
+      onCheckIn(values.itemId, values.quantity);
+    } else {
+      onCheckOut(values.itemId, values.quantity);
+    }
+    form.reset();
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Quick Actions</CardTitle>
-        <CardDescription>Check items in or out of the cabinet</CardDescription>
+        <CardDescription>Check items in or out of {cabinetName}</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -72,14 +99,19 @@ export function ItemCheckInOut({ onSubmit, items }: ItemCheckInOutProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {items.map((item) => (
+                      {locationItems.map((item) => (
                         <SelectItem key={item.id} value={item.id}>
-                          {item.name}
+                          {item.name} ({item.quantity || 0} available)
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
+                  {locationItems.length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      No items found for this location. Add items to this location first.
+                    </p>
+                  )}
                 </FormItem>
               )}
             />
@@ -121,7 +153,7 @@ export function ItemCheckInOut({ onSubmit, items }: ItemCheckInOutProps) {
             />
 
             <div className="flex justify-end">
-              <Button type="submit">
+              <Button type="submit" disabled={locationItems.length === 0}>
                 Submit
               </Button>
             </div>

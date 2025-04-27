@@ -24,6 +24,7 @@ import { getTemplates, saveTemplates } from '@/lib/storageService';
 import { v4 as uuidv4 } from 'uuid';
 import { AddItemDialog } from '@/components/AddItemDialog';
 import { getSettings } from '@/lib/storageService';
+import { useInventory } from "@/hooks/useInventory";
 
 export function TemplatesPage() {
   const [templates, setTemplates] = useState<ItemTemplate[]>([]);
@@ -32,6 +33,7 @@ export function TemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<ItemTemplate | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { items: existingItems } = useInventory();
 
   // Load settings
   const settings = getSettings();
@@ -211,6 +213,7 @@ export function TemplatesPage() {
             units={units}
             locations={locations}
             suppliers={suppliers}
+            projects={projects}
           />
         </DialogContent>
       </Dialog>
@@ -227,6 +230,7 @@ export function TemplatesPage() {
           suppliers={suppliers}
           projects={projects}
           selectedTemplate={selectedTemplate}
+          existingItems={existingItems}
         />
       )}
     </div>

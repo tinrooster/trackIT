@@ -1,27 +1,39 @@
-import { useForm } from "react-hook-form";
+import * as React from 'react';
+import { useState } from "react";
+import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
-import { Form, FormField, FormItem, FormLabel, FormMessage, FormControl } from "@/components/ui/form";
+import { Form, FormField, FormItem, FormLabel, FormMessage, FormControl, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ItemTemplate } from "@/types/templates";
-import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CategoryNode, ItemWithSubcategories } from "@/types/inventory";
+import { CategoryNode, ItemWithSubcategories, OrderStatus } from "@/types/inventory";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { BasicDetailsTab } from "@/components/BasicDetailsTab";
+import { InventorySupplyTab } from "@/components/InventorySupplyTab";
+import { AdditionalInfoTab } from "@/components/AdditionalInfoTab";
+import { Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { Cabinet } from "@/types/cabinets";
+import { ItemTemplate } from "@/types/templates";
+import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 
 const templateFormSchema = z.object({
   templateName: z.string().min(2, "Template name must be at least 2 characters"),
   name: z.string().min(2, "Item name must be at least 2 characters"),
-  description: z.string(),
+  description: z.string().optional(),
   category: z.string().min(1, "Category is required"),
   unit: z.string().min(1, "Unit is required"),
-  minQuantity: z.coerce.number().min(0).optional(),
-  reorderLevel: z.coerce.number().min(0).optional(),
-  location: z.string().optional(),
+  minQuantity: z.number().min(0).optional(),
+  reorderLevel: z.number().min(0).optional(),
+  location: z.string().min(1, "Location is required"),
+  locationSubcategory: z.string().optional(),
   supplier: z.string().optional(),
-  supplierWebsite: z.string().url().optional().or(z.literal("")),
+  supplierWebsite: z.string().url().optional(),
   notes: z.string().optional(),
+  orderStatus: z.nativeEnum(OrderStatus).optional(),
+  barcode: z.string().optional(),
 });
 
 type TemplateFormData = z.infer<typeof templateFormSchema>;
@@ -34,6 +46,9 @@ interface TemplateFormProps {
   units: ItemWithSubcategories[];
   locations: ItemWithSubcategories[];
   suppliers: ItemWithSubcategories[];
+  cabinets?: Cabinet[];
+  projects?: ItemWithSubcategories[];
+  isSubmitting?: boolean;
 }
 
 function flattenCategories(categories: CategoryNode[]): string[] {
@@ -59,9 +74,15 @@ export function TemplateForm({
   categories,
   units,
   locations,
-  suppliers
+  suppliers,
+  cabinets = [],
+  projects = [],
+  isSubmitting = false
 }: TemplateFormProps) {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("details");
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
   const form = useForm<TemplateFormData>({
     resolver: zodResolver(templateFormSchema),
     defaultValues: {
@@ -70,25 +91,48 @@ export function TemplateForm({
       description: template?.description || "",
       category: template?.category || "",
       unit: template?.unit || "",
-      minQuantity: template?.minQuantity,
-      reorderLevel: template?.reorderLevel,
+      minQuantity: template?.minQuantity || 0,
+      reorderLevel: template?.reorderLevel || 0,
       location: template?.location || "",
+      locationSubcategory: template?.locationSubcategory || "",
       supplier: template?.supplier || "",
       supplierWebsite: template?.supplierWebsite || "",
       notes: template?.notes || "",
+      orderStatus: template?.orderStatus || OrderStatus.PENDING,
+      barcode: template?.barcode || "",
     },
   });
 
-  const handleSubmit = (data: TemplateFormData) => {
+  const handleScanResult = (result: string) => {
+    form.setValue("barcode", result);
+    toast({
+      title: "Barcode Scanned",
+      description: `Successfully scanned barcode: ${result}`,
+    });
+    setIsScannerOpen(false);
+  };
+
+  const handleSubmit: SubmitHandler<TemplateFormData> = (data) => {
     const templateData: ItemTemplate = {
       templateId: template?.templateId || crypto.randomUUID(),
-      ...data,
+      templateName: data.templateName,
+      name: data.name,
+      description: data.description || "",
+      category: data.category,
+      unit: data.unit,
+      minQuantity: data.minQuantity || 0,
+      reorderLevel: data.reorderLevel || 0,
+      location: data.location,
+      locationSubcategory: data.locationSubcategory || "",
+      supplier: data.supplier || "",
+      supplierWebsite: data.supplierWebsite || "",
+      notes: data.notes || "",
+      orderStatus: data.orderStatus || OrderStatus.PENDING,
       quantity: 0,
       costPerUnit: 0,
       price: 0,
-      barcode: "",
+      barcode: data.barcode || "",
       project: "",
-      orderStatus: "not_ordered",
       deliveryPercentage: 0,
     };
 
@@ -101,206 +145,75 @@ export function TemplateForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="templateName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Template Name</FormLabel>
-              <Input {...field} placeholder="Enter template name" />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Item Name</FormLabel>
-              <Input {...field} placeholder="Enter item name" />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Description</FormLabel>
-              <Textarea {...field} placeholder="Enter description" />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="category"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Category</FormLabel>
-              <FormControl>
-                <Select onValueChange={field.onChange} value={field.value || undefined}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {flattenCategories(categories).map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="unit"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Unit</FormLabel>
-              <FormControl>
-                <Select onValueChange={field.onChange} value={field.value || undefined}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {units.map(unit => (
-                      <SelectItem key={unit.id} value={unit.name}>
-                        {unit.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="grid grid-cols-2 gap-4">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[80vh] overflow-y-auto p-4">
+        <div className="mb-6 border-b pb-4">
           <FormField
             control={form.control}
-            name="minQuantity"
+            name="templateName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Minimum Quantity</FormLabel>
-                <Input type="number" {...field} placeholder="0" />
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="reorderLevel"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Reorder Level</FormLabel>
-                <Input type="number" {...field} placeholder="0" />
+                <FormLabel>Template Name*</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter template name" />
+                </FormControl>
+                <FormDescription>
+                  Give your template a unique name to identify it later
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="location"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Default Location</FormLabel>
-              <FormControl>
-                <Select onValueChange={field.onChange} value={field.value || undefined}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {locations.map(location => (
-                      <SelectItem key={location.id} value={location.name}>
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="details">Item Details</TabsTrigger>
+            <TabsTrigger value="inventory">Inventory & Supply</TabsTrigger>
+            <TabsTrigger value="additional">Additional Info</TabsTrigger>
+          </TabsList>
 
-        <FormField
-          control={form.control}
-          name="supplier"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Default Supplier</FormLabel>
-              <FormControl>
-                <Select onValueChange={field.onChange} value={field.value || undefined}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select supplier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {suppliers.map(supplier => (
-                      <SelectItem key={supplier.id} value={supplier.name}>
-                        {supplier.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <TabsContent value="details" className="space-y-4 mt-4">
+            <BasicDetailsTab 
+              form={form} 
+              categories={categories} 
+              locations={locations}
+              cabinets={cabinets}
+              projects={projects}
+            />
+          </TabsContent>
 
-        <FormField
-          control={form.control}
-          name="supplierWebsite"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Supplier Website</FormLabel>
-              <Input {...field} placeholder="https://supplier.com" />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <TabsContent value="inventory" className="space-y-4 mt-4">
+            <InventorySupplyTab 
+              form={form} 
+              units={units}
+              suppliers={suppliers}
+            />
+          </TabsContent>
 
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Notes</FormLabel>
-              <Textarea {...field} placeholder="Enter any additional notes" />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <TabsContent value="additional" className="space-y-4 mt-4">
+            <AdditionalInfoTab 
+              form={form}
+              onScanBarcode={() => setIsScannerOpen(true)}
+            />
+          </TabsContent>
+        </Tabs>
 
-        <div className="flex justify-end space-x-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
+        <div className="flex justify-end space-x-2 mt-6 sticky bottom-0 bg-background py-4 border-t">
+          <Button variant="outline" onClick={onCancel} type="button">
             Cancel
           </Button>
-          <Button type="submit">
-            {template ? "Update Template" : "Create Template"}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {template ? 'Update Template' : 'Create Template'}
           </Button>
         </div>
       </form>
+
+      <BarcodeScannerDialog
+        open={isScannerOpen}
+        onOpenChange={setIsScannerOpen}
+        onScan={handleScanResult}
+      />
     </Form>
   );
 } 

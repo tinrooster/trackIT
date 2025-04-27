@@ -174,6 +174,7 @@ export function QRCodeManager({
           cabinetId={cabinetId}
           cabinetName={cabinetName}
           isSecure={isSecure}
+          locationId={locationId}
           onCheckIn={onCheckIn}
           onCheckOut={onCheckOut}
         />

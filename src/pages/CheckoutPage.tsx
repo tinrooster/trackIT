@@ -256,15 +256,15 @@ export default function CheckoutPage() {
           <CardContent className="relative">
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <label className="text-sm font-medium">Secure Cabinet</label>
+                <label className="text-sm font-medium">Cabinet</label>
                 <Select value={selectedCabinetId} onValueChange={handleCabinetChange}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a secure cabinet" />
+                    <SelectValue placeholder="Select a cabinet" />
                   </SelectTrigger>
                   <SelectContent>
-                    {secureCabinets.map(cabinet => (
+                    {cabinets.map(cabinet => (
                       <SelectItem key={cabinet.id} value={cabinet.id}>
-                        {cabinet.name} (Secure)
+                        {cabinet.name} {cabinet.isSecure ? '(Secure)' : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>

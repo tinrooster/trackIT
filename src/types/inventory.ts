@@ -15,6 +15,7 @@ export interface InventoryItem {
   unit: string;
   unitSubcategory?: string;
   location?: string;
+  locationSubcategory?: string;
   cabinet?: string;
   quantity: number;
   supplier?: string;
