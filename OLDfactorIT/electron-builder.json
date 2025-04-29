@@ -1,0 +1,15 @@
+{
+  "appId": "com.trackit.app",
+  "productName": "TrackIT",
+  "directories": {
+    "output": "dist",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "extraMetadata": {
+    "main": "dist-electron/main.js"
+  }
+} 

@@ -1,0 +1,239 @@
+[33mcommit 3b7d9f2e0fb367aa64dcd3e384ed60502df6e6e7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 20:01:46 2025 -0700
+
+    [dyad] Fixing file paths and configuring Vite alias - wrote 6 file(s), renamed 73 file(s), added @types/node package(s)
+
+[33mcommit 2da2dd86e50b5bf82c980440c8c3653695113b9c[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:59:19 2025 -0700
+
+    [dyad] Fixed package.json JSON parse error by removing comment - wrote 1 file(s)
+
+[33mcommit b8bfd071bd21bd4202e2401b4240f5fa1ee83000[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:57:51 2025 -0700
+
+    [dyad] Added missing main.tsx entry point for Vite - wrote 1 file(s)
+
+[33mcommit 0579f5e83c93b74567f70d1f12e6000190b61187[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:56:39 2025 -0700
+
+    [dyad] Fixing file path slashes for Vite compatibility - renamed 26 file(s)
+
+[33mcommit 862562cf154fdd81d43f62d9543247d868e955dd[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:53:05 2025 -0700
+
+    [dyad] Added logging to debug blank Inventory page - wrote 3 file(s)
+
+[33mcommit c713754a45a11b2122ee70aa9a345d9b66fd8140[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:51:02 2025 -0700
+
+    [dyad] Completed writing standard UI components - wrote 16 file(s)
+
+[33mcommit 9aac5dac5f3aab692d436c2d31c17a22ef2c7290[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:49:20 2025 -0700
+
+    [dyad] Fixed package.json syntax error again - wrote 1 file(s)
+
+[33mcommit 919c5c6836c770a8b8745d0f9513d75519ec91d1[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:48:11 2025 -0700
+
+    [dyad] Added missing @radix-ui/react-tabs dependency - wrote 1 file(s)
+
+[33mcommit f7c766b7536194eff32b03b2a2932daa67218fc5[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:46:50 2025 -0700
+
+    [dyad] Fixed package.json syntax error by removing comments - wrote 1 file(s)
+
+[33mcommit 8c2dc6f16d01c69c44f78927e1db95bf4e2093ef[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:44:39 2025 -0700
+
+    [dyad] Completed writing standard UI components - wrote 15 file(s)
+
+[33mcommit 0bfdaa4242a1764a07cd17ff065329db75761110[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:42:08 2025 -0700
+
+    [dyad] Added missing Radix UI dependencies - wrote 1 file(s)
+
+[33mcommit bb78502d85e0df94c362f0c43084f0ec2ae7731b[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:40:47 2025 -0700
+
+    [dyad] Completed Select UI component - wrote 1 file(s)
+
+[33mcommit 954e838ab791a31b3e35047b6402e66e203a844d[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:40:24 2025 -0700
+
+    [dyad] wrote 27 file(s)
+
+[33mcommit 759e61096b97c336f6ef99162e4b9ccff6bf2299[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:38:57 2025 -0700
+
+    [dyad] Added cost tracking, fixed inventory filters & adjustment form - wrote 3 file(s)
+
+[33mcommit 14a2d772ae78a41be5012035764fecb2a38c6274[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:37:39 2025 -0700
+
+    [dyad] wrote 3 file(s)
+
+[33mcommit d893d65b1cdea45b200050c7d26cc447808fee82[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:36:17 2025 -0700
+
+    [dyad] wrote 4 file(s)
+
+[33mcommit 920ce1f5dcfd324f821549189f2faf8fecb88e62[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:20:01 2025 -0700
+
+    [dyad] Improved inventory search/filter, URL handling, and settings reconciliation - wrote 2 file(s)
+
+[33mcommit 430b328c798d41b571d1f27eeb296d49449aa232[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 19:18:18 2025 -0700
+
+    [dyad] wrote 2 file(s)
+
+[33mcommit fa0342372d9415f95acf508eabc68366fa39b8cd[m
+Author: StreetSwap Developer <developer@streetswap.com>
+Date:   Mon Apr 21 18:30:27 2025 -0700
+
+    STABLE BUILD Working UI 0421-2
+
+[33mcommit 7d15ba2bc9f85d071fa957fb818b443f94a67dc0[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 18:28:22 2025 -0700
+
+    [dyad] Implemented dashboard redesign, inventory filters, and settings improvements - wrote 3 file(s)
+
+[33mcommit e47e09bdca6cde5019064fa69c50116fd080a7f0[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 18:20:15 2025 -0700
+
+    [dyad] wrote 5 file(s)
+
+[33mcommit 6d62b01e5eb280dc8129b209baeaa0c99efc7b01[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 18:18:52 2025 -0700
+
+    [dyad] Implemented dashboard redesign, inventory filters, and settings improvements - wrote 4 file(s)
+
+[33mcommit 1be0b8cd2a7c2d13022d7a9b56d759fda09bba1e[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 14:37:38 2025 -0700
+
+    [dyad] wrote 5 file(s)
+
+[33mcommit ecf0f3f0193f18fb5b4783528545622fd662d716[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 13:41:03 2025 -0700
+
+    [dyad] wrote 4 file(s)
+
+[33mcommit 62f31668a5913628265311b5d0b6b22bff6c4352[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 13:31:05 2025 -0700
+
+    [dyad] wrote 5 file(s)
+
+[33mcommit 66ca3607cc66c8b2c702584f2ae783473eaf806c[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 13:27:10 2025 -0700
+
+    [dyad] wrote 4 file(s)
+
+[33mcommit 9b589e118c488d7ddc4ccb34e7677479314e9534[m
+Author: StreetSwap Developer <developer@streetswap.com>
+Date:   Mon Apr 21 13:18:06 2025 -0700
+
+    STABLE BUILD Working UI 0421
+
+[33mcommit e1256aabfaaedcd1f05a5b97c7eeb319cb590583[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 13:14:00 2025 -0700
+
+    [dyad] Completed documentation and fixed inventory management functionality - wrote 1 file(s)
+
+[33mcommit 88067e52e6c63e1de9443bfdb7bc10e246edb8bb[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:59:54 2025 -0700
+
+    [dyad] wrote 6 file(s)
+
+[33mcommit 42dcaf55077ee95fcd685f37fb3bed4fcfe0f1ed[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:54:32 2025 -0700
+
+    [dyad] wrote 7 file(s)
+
+[33mcommit 13b683f3b9258233c2fe474a4e5129c0b9ce67f4[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:47:14 2025 -0700
+
+    [dyad] Fixed Add Inventory Item dialog by simplifying form implementation - wrote 3 file(s)
+
+[33mcommit 8a7ab0f52a68725a4ba5a7f2995a51e4ddc52fd7[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:42:25 2025 -0700
+
+    [dyad] Fixed Add Inventory Item dialog by implementing proper Combobox and Dialog components - wrote 3 file(s)
+
+[33mcommit 5086786e06f0921dd1d28ab5de36db62a89d5234[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:39:55 2025 -0700
+
+    [dyad] Fixed Add Inventory Item dialog form fields display - wrote 4 file(s)
+
+[33mcommit 3dbd6eae132fa5f4b3c339cdb3dac98452049196[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:34:42 2025 -0700
+
+    [dyad] Implemented complete inventory tracking system with barcode scanning and local storage - wrote 6 file(s)
+
+[33mcommit c874e565939819e3b4a18768cb0c27e20bd60923[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:31:03 2025 -0700
+
+    [dyad] wrote 7 file(s)
+
+[33mcommit 9be0874e4cd9288660254773514e6602c7d65e9f[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:26:31 2025 -0700
+
+    [dyad] wrote 9 file(s)
+
+[33mcommit e88f6e1eceddddfa3bc48d84bdbfb6ce3c43e163[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:24:37 2025 -0700
+
+    [dyad] wrote 5 file(s)
+
+[33mcommit bc59f441e07b0c359523e43a975d70fbaf793e74[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Mon Apr 21 12:20:17 2025 -0700
+
+    [dyad] wrote 3 file(s)
+
+[33mcommit 31f35b24fe73c40777d5a08b9b8e665db8c8ea26[m
+Author: [dyad] <ach@tinrooster.com>
+Date:   Sat Apr 19 06:45:46 2025 -0700
+
+    [dyad] wrote 5 file(s)
+
+[33mcommit c035825405d414bff63c87ded67c8734b5ea96d2[m
+Author: StreetSwap Developer <developer@streetswap.com>
+Date:   Sat Apr 19 06:40:37 2025 -0700
+
+    Initial commit - stable UI 640am
