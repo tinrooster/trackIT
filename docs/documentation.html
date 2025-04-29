@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrackIT Inventory App Documentation</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; background: #f9f9f9; color: #222; }
+    h1, h2, h3 { color: #1a237e; }
+    section { margin-bottom: 2rem; }
+    .placeholder { color: #888; font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1>TrackIT Inventory App Documentation</h1>
+
+  <section>
+    <h2>Overview</h2>
+    <p>TrackIT is an inventory management system for TV Engineering and IT departments, supporting asset tracking, project management, secure storage, and reporting. The app is designed for desktop (Tauri), PWA/mobile, and in-house/cloud deployment.</p>
+  </section>
+
+  <section>
+    <h2>Key Features</h2>
+    <ul>
+      <li>Asset tracking with unique IDs/barcodes</li>
+      <li>Check-in/check-out with user and project association</li>
+      <li>Location management (secure storage vs. general inventory)</li>
+      <li>User management and role-based access</li>
+      <li>Maintenance logs and scheduling</li>
+      <li>Consumables tracking and reorder alerts</li>
+      <li>Audit trail for all actions</li>
+      <li>Advanced search, filter, and reporting</li>
+      <li>Project tracking and asset assignment</li>
+      <li>User asset tagging and updates</li>
+      <li>Barcode/QR code scanning (PWA/mobile)</li>
+      <li>Bulk import/export</li>
+      <li>Notifications and alerts</li>
+      <li>API access for integration</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Entity/Data Model</h2>
+    <ul>
+      <li>Asset</li>
+      <li>User</li>
+      <li>Location</li>
+      <li>Project</li>
+      <li>Transaction</li>
+      <li>Maintenance</li>
+      <li>Consumable</li>
+      <li>Tag</li>
+      <li>AssetTag</li>
+    </ul>
+    <p class="placeholder">(Detailed schema to be added)</p>
+  </section>
+
+  <section>
+    <h2>Security & Access Control</h2>
+    <ul>
+      <li>Role-based access (admin, engineer, IT staff, etc.)</li>
+      <li>Restricted actions for secure storage</li>
+      <li>Audit logging of all changes</li>
+      <li>Authentication and authorization</li>
+      <li>Data encryption and secure connections (HTTPS)</li>
+    </ul>
+    <p class="placeholder">(Implementation details to be added)</p>
+  </section>
+
+  <section>
+    <h2>Reporting</h2>
+    <ul>
+      <li>Project-based asset and usage reports</li>
+      <li>Inventory and location reports</li>
+      <li>User activity and asset tagging reports</li>
+      <li>Custom and scheduled reports</li>
+    </ul>
+    <p class="placeholder">(Report templates and examples to be added)</p>
+  </section>
+
+  <section>
+    <h2>Project Structure</h2>
+    <pre>
+trackIT/
+  src/
+    app/                # App-specific logic (features)
+    components/         # Reusable UI components
+    contexts/           # React contexts for state management
+    hooks/              # Custom React hooks
+    lib/                # Utility libraries
+    pages/              # Page-level components (routing)
+    types/              # TypeScript types/interfaces
+    utils/              # Utility functions
+  public/               # Static assets
+  tauri/                # Tauri backend (Rust)
+    src/
+      main.rs           # Tauri main process
+    tauri.conf.json     # Tauri config
+  docs/                 # Documentation
+  README.md
+  package.json
+  ...
+    </pre>
+    <p class="placeholder">(Further structure and setup instructions to be added)</p>
+  </section>
+
+  <section>
+    <h2>Setup & Deployment</h2>
+    <p class="placeholder">(Instructions for local, in-house, and cloud deployment to be added)</p>
+  </section>
+
+  <section>
+    <h2>Changelog</h2>
+    <ul>
+      <li>Initial documentation framework created.</li>
+      <li>Initial commit of OLDfactorIT directory and all project files. Remote repository set to <a href="https://github.com/tinrooster/trackIT" target="_blank">https://github.com/tinrooster/trackIT</a> and code pushed to main branch. (by ach@tinrooster.com)</li>
+      <li>OLDfactorIT folder removed from repository and added to .gitignore to prevent tracking. (by ach@tinrooster.com, 2024-06-09)</li>
+      <li>Removed the import of './routeTree.gen' and updated router initialization in refactored_trackit/src/main.tsx to avoid referencing a missing generated file, resolving a server start error. (2024-06-09)</li>
+    </ul>
+  </section>
+</body>
+</html> 
