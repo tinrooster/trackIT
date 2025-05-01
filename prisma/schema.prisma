@@ -1,0 +1,137 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  role      Role     @default(STANDARD)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  transactions     Transaction[]
+  maintenanceLogs  MaintenanceLog[]
+  assignedAssets   Asset[]
+}
+
+model Asset {
+  id                String    @id @default(uuid())
+  name              String
+  type              AssetType
+  serialNumber      String    @unique
+  barcode           String    @unique
+  status            AssetStatus @default(AVAILABLE)
+  purchaseDate      DateTime
+  warrantyExpiration DateTime?
+  lastMaintenance   DateTime?
+  nextMaintenance   DateTime?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  location          Location     @relation(fields: [locationId], references: [id])
+  locationId        String
+  assignedTo        User?        @relation(fields: [assignedToId], references: [id])
+  assignedToId      String?
+  transactions      Transaction[]
+  maintenanceLogs   MaintenanceLog[]
+}
+
+model Location {
+  id              String    @id @default(uuid())
+  name            String
+  type            String
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  parentLocation  Location?  @relation("LocationHierarchy", fields: [parentLocationId], references: [id])
+  parentLocationId String?
+  childLocations  Location[] @relation("LocationHierarchy")
+  assets          Asset[]
+  consumables     Consumable[]
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  type      TransactionType
+  dueDate   DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  assetId   String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+}
+
+model MaintenanceLog {
+  id                 String   @id @default(uuid())
+  description        String
+  cost              Float?
+  date              DateTime
+  nextMaintenanceDate DateTime?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  asset             Asset    @relation(fields: [assetId], references: [id])
+  assetId           String
+  performedBy       User     @relation(fields: [performedById], references: [id])
+  performedById     String
+}
+
+model Consumable {
+  id            String   @id @default(uuid())
+  name          String
+  quantity      Int      @default(0)
+  reorderLevel  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  location      Location @relation(fields: [locationId], references: [id])
+  locationId    String
+}
+
+enum Role {
+  ADMIN
+  ENGINEER
+  IT_STAFF
+  STANDARD
+}
+
+enum AssetStatus {
+  AVAILABLE
+  CHECKED_OUT
+  MAINTENANCE
+  RETIRED
+}
+
+enum AssetType {
+  CAMERA
+  SERVER
+  COMPUTER
+  CABLE
+  ACCESSORY
+  OTHER
+}
+
+enum TransactionType {
+  CHECK_OUT
+  CHECK_IN
+  MAINTENANCE
+}
