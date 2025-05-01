@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/tauri'
+import type { Asset } from '../types'
 
 // Debug logging helper
 const debug = {
@@ -14,22 +15,16 @@ const debug = {
 }
 
 // Asset types and service definitions
-export type AssetCreateInput = {
-  name: string
-  type: string
-  serialNumber: string
-  barcode: string
-  status?: string
-  locationId: string
-  assignedToId?: string | null
-  purchaseDate: Date
-  warrantyExpiration?: Date | null
-  lastMaintenance?: Date | null
-  nextMaintenance?: Date | null
-  notes?: string | null
-}
+export type AssetCreateInput = Omit<Asset, 'id'>
+export type AssetUpdateInput = Partial<Asset>
 
-export type AssetUpdateInput = Partial<AssetCreateInput>
+const assetKeys = {
+  all: ['assets'] as const,
+  lists: () => [...assetKeys.all, 'list'] as const,
+  list: (filters: Record<string, string>) => [...assetKeys.lists(), { filters }] as const,
+  details: () => [...assetKeys.all, 'detail'] as const,
+  detail: (id: string) => [...assetKeys.details(), id] as const,
+}
 
 function isTauriApp() {
   return Boolean(window.__TAURI_IPC__) && window.location.protocol === 'tauri:'
@@ -121,108 +116,99 @@ async function invokeCommand<T>(command: string, args?: Record<string, unknown>)
 }
 
 export const assetService = {
-  // Get all assets with optional filtering
+  // API calls
+  async getAssets(): Promise<Asset[]> {
+    try {
+      const assets = await invoke<Asset[]>('get_assets')
+      return assets
+    } catch (error) {
+      console.error('Failed to fetch assets:', error)
+      throw error
+    }
+  },
+
+  async getAsset(id: string): Promise<Asset> {
+    try {
+      const asset = await invoke<Asset>('get_asset', { id })
+      return asset
+    } catch (error) {
+      console.error(`Failed to fetch asset ${id}:`, error)
+      throw error
+    }
+  },
+
+  async createAsset(asset: AssetCreateInput): Promise<Asset> {
+    try {
+      const newAsset = await invoke<Asset>('create_asset', { asset })
+      return newAsset
+    } catch (error) {
+      console.error('Failed to create asset:', error)
+      throw error
+    }
+  },
+
+  async updateAsset(id: string, asset: AssetUpdateInput): Promise<Asset> {
+    try {
+      const updatedAsset = await invoke<Asset>('update_asset', { id, asset })
+      return updatedAsset
+    } catch (error) {
+      console.error(`Failed to update asset ${id}:`, error)
+      throw error
+    }
+  },
+
+  async deleteAsset(id: string): Promise<void> {
+    try {
+      await invoke('delete_asset', { id })
+    } catch (error) {
+      console.error(`Failed to delete asset ${id}:`, error)
+      throw error
+    }
+  },
+
+  // React Query hooks
   useAssets() {
-    debug.log('Initializing useAssets hook')
-    return useQuery<{ assets: any[] }, Error>({
-      queryKey: ['assets'],
-      queryFn: async () => {
-        debug.log('Fetching all assets')
-        const result = await invokeCommand<{ assets: any[] }>('get_assets')
-        debug.log('Assets fetched:', result)
-        return result
-      },
-      retry: 3,
-      retryDelay: 1000,
-      staleTime: 30000, // Consider data fresh for 30 seconds
+    return useQuery<Asset[], Error>({
+      queryKey: assetKeys.lists(),
+      queryFn: () => this.getAssets(),
     })
   },
-  
-  // Get a single asset by ID
+
   useAsset(id: string) {
-    debug.log('Initializing useAsset hook for id:', id)
-    return useQuery<{ asset: any }, Error>({
-      queryKey: ['assets', id],
-      queryFn: async () => {
-        debug.log('Fetching asset:', id)
-        const result = await invokeCommand<{ asset: any }>('get_asset', { id })
-        debug.log('Asset fetched:', result)
-        return result
-      },
-      retry: 3,
-      retryDelay: 1000,
-      staleTime: 30000, // Consider data fresh for 30 seconds
+    return useQuery<Asset, Error>({
+      queryKey: assetKeys.detail(id),
+      queryFn: () => this.getAsset(id),
     })
   },
 
-  // Create a new asset
   useCreateAsset() {
-    debug.log('Initializing useCreateAsset hook')
     const queryClient = useQueryClient()
-    return useMutation<{ asset: any }, Error, AssetCreateInput>({
-      mutationFn: async (data) => {
-        debug.log('Creating asset:', data)
-        const result = await invokeCommand<{ asset: any }>('create_asset', { data })
-        debug.log('Asset created:', result)
-        return result
-      },
+    return useMutation<Asset, Error, AssetCreateInput>({
+      mutationFn: (asset) => this.createAsset(asset),
       onSuccess: () => {
-        debug.log('Asset created successfully, invalidating queries')
-        queryClient.invalidateQueries({ queryKey: ['assets'] })
+        queryClient.invalidateQueries({ queryKey: assetKeys.lists() })
       },
-      onError: (error) => {
-        debug.error('Error in useCreateAsset:', error)
-      },
-      retry: 2,
     })
   },
 
-  // Update an asset
   useUpdateAsset() {
-    debug.log('Initializing useUpdateAsset hook')
     const queryClient = useQueryClient()
-    return useMutation<
-      { asset: any },
-      Error,
-      { id: string; data: AssetUpdateInput }
-    >({
-      mutationFn: async ({ id, data }) => {
-        debug.log('Updating asset:', { id, data })
-        const result = await invokeCommand<{ asset: any }>('update_asset', { id, data })
-        debug.log('Asset updated:', result)
-        return result
-      },
+    return useMutation<Asset, Error, { id: string; asset: AssetUpdateInput }>({
+      mutationFn: ({ id, asset }) => this.updateAsset(id, asset),
       onSuccess: (_, { id }) => {
-        debug.log('Asset updated successfully, invalidating queries')
-        queryClient.invalidateQueries({ queryKey: ['assets'] })
-        queryClient.invalidateQueries({ queryKey: ['assets', id] })
+        queryClient.invalidateQueries({ queryKey: assetKeys.detail(id) })
+        queryClient.invalidateQueries({ queryKey: assetKeys.lists() })
       },
-      onError: (error, variables) => {
-        debug.error(`Error in useUpdateAsset for id ${variables.id}:`, error)
-      },
-      retry: 2,
     })
   },
 
-  // Delete an asset
   useDeleteAsset() {
-    debug.log('Initializing useDeleteAsset hook')
     const queryClient = useQueryClient()
     return useMutation<void, Error, string>({
-      mutationFn: async (id) => {
-        debug.log('Deleting asset:', id)
-        const result = await invokeCommand<void>('delete_asset', { id })
-        debug.log('Asset deleted:', id)
-        return result
-      },
+      mutationFn: (id) => this.deleteAsset(id),
       onSuccess: () => {
-        debug.log('Asset deleted successfully, invalidating queries')
-        queryClient.invalidateQueries({ queryKey: ['assets'] })
+        queryClient.invalidateQueries({ queryKey: assetKeys.lists() })
       },
-      onError: (error, id) => {
-        debug.error(`Error in useDeleteAsset for id ${id}:`, error)
-      },
-      retry: 2,
     })
   },
 } 

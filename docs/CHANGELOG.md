@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Resolved duplicate command definitions in Rust backend
+  - Removed duplicate command implementations from `main.rs`
+  - Properly imported commands from `commands.rs` module
+  - Fixed command handler registration
+
+- Fixed Prisma client integration
+  - Added proper Prisma client generation in build script
+  - Updated Prisma client dependencies
+  - Added binary for Prisma code generation
+
+- Fixed Tauri plugin compatibility issues
+  - Updated tauri-plugin-log to use v1 branch for Tauri 1.x compatibility
+  - Resolved dependency conflicts with webkit2gtk
+
 - Added basic route configuration in `refactored_trackit/src/main.tsx` to resolve blank page and router errors
   - Created root route and index route
   - Added welcome page component

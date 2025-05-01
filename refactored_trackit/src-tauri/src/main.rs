@@ -7,10 +7,7 @@
 mod commands;
 mod db;
 
-use commands::*;
-use prisma_client_rust::NewClientError;
-use serde::{Deserialize, Serialize};
-use tauri::State;
+use commands::{get_assets, get_asset};
 use tauri::Builder;
 use tauri_plugin_log::{LogTarget, LoggerBuilder};
 
@@ -39,15 +36,14 @@ pub struct User {
 
 #[tauri::command]
 async fn get_assets() -> Result<Vec<Asset>, String> {
-    let client = prisma::new_client().await.map_err(|e| e.to_string())?;
+    let client = get_client().await;
     let assets = client
         .asset()
         .find_many(vec![])
-        .include(asset::Include {
+        .include(prisma::asset::include!({
             location: true,
-            assigned_to: true,
-            ..Default::default()
-        })
+            assigned_to: true
+        }))
         .exec()
         .await
         .map_err(|e| e.to_string())?;
@@ -57,16 +53,16 @@ async fn get_assets() -> Result<Vec<Asset>, String> {
 
 #[tauri::command]
 async fn get_asset(id: String) -> Result<Asset, String> {
-    let client = prisma::new_client().await.map_err(|e| e.to_string())?;
+    let client = get_client().await;
     let asset = client
         .asset()
-        .find_unique(asset::UniqueWhereParam::IdEquals(id))
-        .include(asset::Include {
+        .find_unique(prisma::asset::id::equals(id))
+        .include(prisma::asset::include!({
             location: true,
             assigned_to: true,
             transactions: true,
-            maintenance_logs: true,
-        })
+            maintenance_logs: true
+        }))
         .exec()
         .await
         .map_err(|e| e.to_string())?
@@ -88,6 +84,7 @@ async fn main() {
 
     Builder::default()
         .plugin(logger)
+        .invoke_handler(tauri::generate_handler![get_assets, get_asset])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -2,19 +2,20 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client-rust"
+  output   = "../src-tauri/src/prisma.rs"
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:dev.db"
 }
 
 model User {
   id        String   @id @default(uuid())
   name      String
   email     String   @unique
-  role      Role     @default(STANDARD)
+  role      String   @default("STANDARD")
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -28,10 +29,10 @@ model User {
 model Asset {
   id                String    @id @default(uuid())
   name              String
-  type              AssetType
+  type              String
   serialNumber      String    @unique
   barcode           String    @unique
-  status            AssetStatus @default(AVAILABLE)
+  status            String    @default("AVAILABLE")
   purchaseDate      DateTime
   warrantyExpiration DateTime?
   lastMaintenance   DateTime?
@@ -67,7 +68,7 @@ model Location {
 
 model Transaction {
   id        String   @id @default(uuid())
-  type      TransactionType
+  type      String
   dueDate   DateTime?
   notes     String?
   createdAt DateTime @default(now())
@@ -105,33 +106,4 @@ model Consumable {
   // Relations
   location      Location @relation(fields: [locationId], references: [id])
   locationId    String
-}
-
-enum Role {
-  ADMIN
-  ENGINEER
-  IT_STAFF
-  STANDARD
-}
-
-enum AssetStatus {
-  AVAILABLE
-  CHECKED_OUT
-  MAINTENANCE
-  RETIRED
-}
-
-enum AssetType {
-  CAMERA
-  SERVER
-  COMPUTER
-  CABLE
-  ACCESSORY
-  OTHER
-}
-
-enum TransactionType {
-  CHECK_OUT
-  CHECK_IN
-  MAINTENANCE
 }

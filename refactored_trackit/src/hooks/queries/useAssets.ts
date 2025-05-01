@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assetService } from '@/services/asset.service';
 import type { AssetCreateInput, AssetUpdateInput } from '@/services/asset.service';
+import type { Asset } from '@/types';
 
 // Query keys
 export const assetKeys = {
@@ -18,4 +19,11 @@ export const {
   useCreateAsset,
   useUpdateAsset,
   useDeleteAsset,
-} = assetService; 
+} = assetService;
+
+export function useAssets() {
+  return useQuery<Asset[], Error>({
+    queryKey: ['assets'],
+    queryFn: () => assetService.getAssets(),
+  });
+} 

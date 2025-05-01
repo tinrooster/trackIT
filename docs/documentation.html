@@ -99,53 +99,77 @@ trackIT/
     router.ts         # Centralized router configuration
     main.tsx          # Application entry point
   public/             # Static assets
-  tauri/              # Tauri backend (Rust)
+  src-tauri/          # Tauri backend (Rust)
     src/
       main.rs         # Tauri main process
-    tauri.conf.json   # Tauri config
+      commands.rs     # Tauri command definitions
+      db.rs          # Database connection handling
+      bin/
+        prisma.rs    # Prisma client generator
+    prisma/
+      schema.prisma  # Database schema definition
+    tauri.conf.json  # Tauri config
   docs/               # Documentation
   README.md
   package.json
-  ...
     </pre>
   </section>
 
   <section>
-    <h2>Routing Structure</h2>
-    <p>The application uses TanStack Router for type-safe routing with the following structure:</p>
+    <h2>Backend Architecture</h2>
+    <h3>Database Integration</h3>
     <ul>
-      <li><code>/</code> - Home page with navigation to main features</li>
-      <li><code>/inventory</code> - Inventory management interface</li>
-      <li><code>/assets</code> - Asset tracking and management</li>
-      <li><code>/api/assets</code> - API endpoints for asset operations</li>
+      <li>Uses Prisma with SQLite for data persistence</li>
+      <li>Automatic client generation during build</li>
+      <li>Type-safe database operations</li>
+      <li>Migration support for schema changes</li>
+    </ul>
+
+    <h3>Tauri Commands</h3>
+    <ul>
+      <li>Asset Management
+        <ul>
+          <li><code>get_assets()</code> - Retrieve all assets with relations</li>
+          <li><code>get_asset(id: String)</code> - Get single asset by ID with relations</li>
+        </ul>
+      </li>
+      <li>Logging System
+        <ul>
+          <li>Integrated with tauri-plugin-log</li>
+          <li>Multi-target logging (stdout, file, webview)</li>
+          <li>Configurable log levels</li>
+        </ul>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Recent Updates</h2>
+    <ul>
+      <li>Fixed duplicate command definitions in Rust backend</li>
+      <li>Implemented proper Prisma client generation</li>
+      <li>Resolved Tauri plugin compatibility issues</li>
+      <li>Fixed logging system integration</li>
+      <li>Added proper build script for Prisma client generation</li>
+      <li>Fixed dependency conflicts</li>
+      <li>Updated plugin versions for compatibility</li>
     </ul>
   </section>
 
   <section>
     <h2>Setup & Deployment</h2>
-    <p class="placeholder">(Instructions for local, in-house, and cloud deployment to be added)</p>
+    <p>Instructions for local development:</p>
+    <ol>
+      <li>Clone the repository</li>
+      <li>Install dependencies with <code>pnpm install</code></li>
+      <li>Run <code>pnpm tauri dev</code> for development</li>
+      <li>Build with <code>pnpm tauri build</code> for production</li>
+    </ol>
   </section>
 
   <section>
     <h2>Changelog</h2>
-    <ul>
-      <li>Initial documentation framework created.</li>
-      <li>Initial commit of OLDfactorIT directory and all project files. Remote repository set to <a href="https://github.com/tinrooster/trackIT" target="_blank">https://github.com/tinrooster/trackIT</a> and code pushed to main branch. (by ach@tinrooster.com)</li>
-      <li>OLDfactorIT folder removed from repository and added to .gitignore to prevent tracking. (by ach@tinrooster.com, 2024-06-09)</li>
-      <li>Removed the import of './routeTree.gen' and updated router initialization in refactored_trackit/src/main.tsx to avoid referencing a missing generated file, resolving a server start error. (2024-06-09)</li>
-      <li>Consolidated router configuration into a single source of truth in src/router.ts and updated main.tsx to use the new configuration. (2024-06-09)</li>
-      <li>Implemented TanStack Router with proper route configuration and type safety:
-        <ul>
-          <li>Created root layout with navigation</li>
-          <li>Added home page with feature navigation</li>
-          <li>Implemented inventory and asset management routes</li>
-          <li>Added 404 handling with NotFound component</li>
-        </ul>
-      </li>
-      <li>Added React Query integration for data fetching and state management</li>
-      <li>Implemented responsive UI with Tailwind CSS</li>
-      <li>Added proper TypeScript configurations and type definitions</li>
-    </ul>
+    <p>For detailed changes and updates, see <a href="CHANGELOG.md">CHANGELOG.md</a></p>
   </section>
 </body>
 </html> 

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "prisma": {
-    "seed": "node --loader ts-node/esm prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts"
   },
   "scripts": {
     "dev": "vite",
@@ -58,6 +58,7 @@
     "prettier": "^3.5.3",
     "prisma": "^5.10.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.4",
     "typescript": "^5.7.2",
     "vite": "^6.1.0",
     "vitest": "^3.0.5",

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { createRoute } from '@tanstack/react-router';
-import { rootRoute } from './__root';
+import { rootRoute } from '../routes/__root';
 import { assetService } from '../services/asset.service';
 import type { Asset } from '../types/asset';
 
@@ -8,8 +8,8 @@ export const inventoryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/inventory',
   loader: async () => {
-    const result = await assetService.useAssets();
-    return { assets: result?.data ?? [] };
+    const assets = await assetService.getAssets();
+    return { assets };
   },
   component: InventoryPage,
 });

@@ -2,6 +2,7 @@ import { Router, createRoute } from '@tanstack/react-router'
 import { rootRoute } from './__root'
 import { Link } from '@tanstack/react-router'
 import { assetsRoute } from './api.assets'
+import { inventoryRoute } from './inventory'
 
 // Create the index route
 export const indexRoute = createRoute({
@@ -14,6 +15,7 @@ export const indexRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   assetsRoute,
+  inventoryRoute,
 ])
 
 // Create and export the router instance
