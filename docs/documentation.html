@@ -9,6 +9,7 @@
     h1, h2, h3 { color: #1a237e; }
     section { margin-bottom: 2rem; }
     .placeholder { color: #888; font-style: italic; }
+    code { background: #f0f0f0; padding: 0.2em 0.4em; border-radius: 3px; }
   </style>
 </head>
 <body>
@@ -85,23 +86,39 @@ trackIT/
   src/
     app/                # App-specific logic (features)
     components/         # Reusable UI components
-    contexts/           # React contexts for state management
-    hooks/              # Custom React hooks
-    lib/                # Utility libraries
-    pages/              # Page-level components (routing)
-    types/              # TypeScript types/interfaces
-    utils/              # Utility functions
-  public/               # Static assets
-  tauri/                # Tauri backend (Rust)
+    contexts/          # React contexts for state management
+    hooks/             # Custom React hooks
+    lib/               # Utility libraries
+    routes/            # Route components and configurations
+      __root.tsx       # Root layout and configuration
+      index.tsx        # Home page route
+      assets.tsx       # Asset management routes
+      inventory.tsx    # Inventory management routes
+    types/             # TypeScript types/interfaces
+    utils/             # Utility functions
+    router.ts         # Centralized router configuration
+    main.tsx          # Application entry point
+  public/             # Static assets
+  tauri/              # Tauri backend (Rust)
     src/
-      main.rs           # Tauri main process
-    tauri.conf.json     # Tauri config
-  docs/                 # Documentation
+      main.rs         # Tauri main process
+    tauri.conf.json   # Tauri config
+  docs/               # Documentation
   README.md
   package.json
   ...
     </pre>
-    <p class="placeholder">(Further structure and setup instructions to be added)</p>
+  </section>
+
+  <section>
+    <h2>Routing Structure</h2>
+    <p>The application uses TanStack Router for type-safe routing with the following structure:</p>
+    <ul>
+      <li><code>/</code> - Home page with navigation to main features</li>
+      <li><code>/inventory</code> - Inventory management interface</li>
+      <li><code>/assets</code> - Asset tracking and management</li>
+      <li><code>/api/assets</code> - API endpoints for asset operations</li>
+    </ul>
   </section>
 
   <section>
@@ -116,6 +133,18 @@ trackIT/
       <li>Initial commit of OLDfactorIT directory and all project files. Remote repository set to <a href="https://github.com/tinrooster/trackIT" target="_blank">https://github.com/tinrooster/trackIT</a> and code pushed to main branch. (by ach@tinrooster.com)</li>
       <li>OLDfactorIT folder removed from repository and added to .gitignore to prevent tracking. (by ach@tinrooster.com, 2024-06-09)</li>
       <li>Removed the import of './routeTree.gen' and updated router initialization in refactored_trackit/src/main.tsx to avoid referencing a missing generated file, resolving a server start error. (2024-06-09)</li>
+      <li>Consolidated router configuration into a single source of truth in src/router.ts and updated main.tsx to use the new configuration. (2024-06-09)</li>
+      <li>Implemented TanStack Router with proper route configuration and type safety:
+        <ul>
+          <li>Created root layout with navigation</li>
+          <li>Added home page with feature navigation</li>
+          <li>Implemented inventory and asset management routes</li>
+          <li>Added 404 handling with NotFound component</li>
+        </ul>
+      </li>
+      <li>Added React Query integration for data fetching and state management</li>
+      <li>Implemented responsive UI with Tailwind CSS</li>
+      <li>Added proper TypeScript configurations and type definitions</li>
     </ul>
   </section>
 </body>
