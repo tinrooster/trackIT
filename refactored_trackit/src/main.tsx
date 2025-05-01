@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
-import { router } from './routes'
+import { router } from './routeTree'
 import './styles.css'
 import reportWebVitals from './reportWebVitals.ts'
 import { getVersion } from '@tauri-apps/api/app'

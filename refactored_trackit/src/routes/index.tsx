@@ -1,8 +1,6 @@
-import { Router, createRoute } from '@tanstack/react-router'
+import { createRoute } from '@tanstack/react-router'
 import { rootRoute } from './__root'
 import { Link } from '@tanstack/react-router'
-import { assetsRoute } from './api.assets'
-import { inventoryRoute } from './inventory'
 
 // Create the index route
 export const indexRoute = createRoute({
@@ -10,22 +8,6 @@ export const indexRoute = createRoute({
   path: '/',
   component: HomePage,
 })
-
-// Create the route tree with all routes
-const routeTree = rootRoute.addChildren([
-  indexRoute,
-  assetsRoute,
-  inventoryRoute,
-])
-
-// Create and export the router instance
-export const router = new Router({ routeTree })
-
-declare module '@tanstack/react-router' {
-  interface Register {
-    router: typeof router
-  }
-}
 
 function HomePage() {
   return (
@@ -50,19 +32,25 @@ function HomePage() {
           </p>
         </Link>
 
-        <div className="p-6 bg-white rounded-lg shadow-sm">
-          <h2 className="text-xl font-semibold mb-2">Check In/Out</h2>
-          <p className="text-gray-600">
-            Manage equipment assignments and returns
-          </p>
-        </div>
-
-        <div className="p-6 bg-white rounded-lg shadow-sm">
+        <Link
+          to="/reports"
+          className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+        >
           <h2 className="text-xl font-semibold mb-2">Reports</h2>
           <p className="text-gray-600">
             Generate insights and track inventory metrics
           </p>
-        </div>
+        </Link>
+
+        <Link
+          to="/settings"
+          className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+        >
+          <h2 className="text-xl font-semibold mb-2">Settings</h2>
+          <p className="text-gray-600">
+            Configure application settings and preferences
+          </p>
+        </Link>
       </div>
     </div>
   )
