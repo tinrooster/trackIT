@@ -57,7 +57,7 @@ async function initApp() {
     }
 
     debug.log('Looking for root element...')
-    const rootElement = document.getElementById('app')
+    const rootElement = document.getElementById('root')
     debug.log('Root element found:', !!rootElement)
     
     if (!rootElement) {
@@ -78,7 +78,7 @@ async function initApp() {
   } catch (error) {
     debug.error('Failed to initialize app:', error)
     // Display error to user
-    const rootElement = document.getElementById('app')
+    const rootElement = document.getElementById('root')
     if (rootElement) {
       rootElement.innerHTML = `
         <div style="padding: 20px; color: red;">

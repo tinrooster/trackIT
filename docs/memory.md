@@ -320,4 +320,16 @@
 - Follow security best practices for authentication
 - Maintain backward compatibility with existing data
 - Consider scalability in database design
-- Document all API endpoints thoroughly 
+- Document all API endpoints thoroughly
+
+## Vite + Tauri + Tailwind Recovery (2024-05-02)
+
+- Resolved persistent 404 and blank page issues by:
+  - Ensuring only one index.html in project root, none in public/
+  - Removing root property from vite.config.ts and using only one config file
+  - Renaming postcss.config.js and tailwind.config.js to .cjs for ESM compatibility
+  - Installing and configuring @tailwindcss/postcss for Tailwind v4
+  - Verifying tauri.conf.json in src-tauri/ with correct beforeDevCommand and devPath
+  - Running only pnpm tauri dev from inside refactored_trackit/
+- Restored full CSS and formatting for the app
+- Documented correct dev workflow for Vite + Tauri 

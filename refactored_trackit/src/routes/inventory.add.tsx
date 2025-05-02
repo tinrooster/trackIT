@@ -1,15 +1,12 @@
-import * as React from 'react';
-import { createRoute } from '@tanstack/react-router';
-import { Route as rootRoute } from './__root';
-import { AddAssetForm } from '../components/inventory/AddAssetForm';
+import { createFileRoute } from '@tanstack/react-router'
+import { AddAssetForm } from '../components/inventory/AddAssetForm'
 
-export const Route = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/inventory/add',
-  component: AddAssetPage,
-});
+export const Route = createFileRoute('/inventory/add')({
+  component: RouteComponent,
+})
 
-function AddAssetPage() {
+function RouteComponent() {
+  console.log('Rendering AddAssetPage');
   return (
     <div>
       <div className="sm:flex sm:items-center">
@@ -20,10 +17,9 @@ function AddAssetPage() {
           </p>
         </div>
       </div>
-
       <div className="mt-8 max-w-3xl">
         <AddAssetForm />
       </div>
     </div>
   );
-} 
+}

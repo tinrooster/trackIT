@@ -1,17 +1,23 @@
 import * as React from 'react';
-import { createRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Route as rootRoute } from './__root';
+import { createFileRoute, Link, useNavigate, Outlet, useLocation } from '@tanstack/react-router';
 import { AssetTable } from '../components/inventory/AssetTable';
 import { assetService } from '../services/asset.service';
 import type { Asset } from '../types';
 
-export const Route = createRoute({
-  getParentRoute: () => rootRoute,
-  path: 'inventory',
+export const Route = createFileRoute('/inventory')({
   component: InventoryPage,
 });
 
 function InventoryPage() {
+  console.log('Rendering InventoryPage');
+  const { pathname } = useLocation();
+  const isAddPage = pathname === '/inventory/add';
+
+  if (isAddPage) {
+    // Only render the Add Asset form as a full page
+    return <Outlet />;
+  }
+
   const { data: assets, isLoading, error } = assetService.useAssets();
   const deleteAssetMutation = assetService.useDeleteAsset();
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -97,6 +103,7 @@ function InventoryPage() {
           <Link
             to="/inventory/add"
             className="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:w-auto"
+            onClick={() => console.log('Inventory Page: Add Asset button clicked')}
           >
             Add Asset
           </Link>
@@ -162,6 +169,7 @@ function InventoryPage() {
         assets={filteredAssets}
         onDelete={handleDelete}
       />
+      <Outlet />
     </div>
   );
 } 

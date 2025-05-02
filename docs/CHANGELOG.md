@@ -32,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed routeTree from router configuration
   - Server can now start without the generated route tree file
 
+- Restored Vite + Tauri + Tailwind integration:
+  - Ensured only one index.html in project root
+  - Removed root property from vite.config.ts
+  - Renamed postcss.config.js and tailwind.config.js to .cjs for ESM compatibility
+  - Installed and configured @tailwindcss/postcss for Tailwind v4
+  - Verified tauri.conf.json in src-tauri/ with correct beforeDevCommand and devPath
+  - Restored full CSS and formatting
+  - Documented correct dev workflow for Vite + Tauri
+
 ### Changed
 - Moved documentation to `docs/` directory
   - Consolidated all markdown documentation files

@@ -83,36 +83,14 @@
     <h2>Project Structure</h2>
     <pre>
 trackIT/
-  src/
-    app/                # App-specific logic (features)
-    components/         # Reusable UI components
-    contexts/          # React contexts for state management
-    hooks/             # Custom React hooks
-    lib/               # Utility libraries
-    routes/            # Route components and configurations
-      __root.tsx       # Root layout and configuration
-      index.tsx        # Home page route
-      assets.tsx       # Asset management routes
-      inventory.tsx    # Inventory management routes
-    types/             # TypeScript types/interfaces
-    utils/             # Utility functions
-    router.ts         # Centralized router configuration
-    main.tsx          # Application entry point
-  public/             # Static assets
-  src-tauri/          # Tauri backend (Rust)
-    src/
-      main.rs         # Tauri main process
-      commands.rs     # Tauri command definitions
-      db.rs          # Database connection handling
-      bin/
-        prisma.rs    # Prisma client generator
-    prisma/
-      schema.prisma  # Database schema definition
-    tauri.conf.json  # Tauri config
-  docs/               # Documentation
-  README.md
-  package.json
+  refactored_trackit/
+    index.html           # Main HTML entry point for Vite
+    vite.config.ts       # Vite config must be here for correct dev server context
+    src/                # App source code
+    ...
+  ...
     </pre>
+    <p><b>Note:</b> Always run the dev server from <code>refactored_trackit/</code> to avoid 404 errors and ensure correct routing. The vite.config.ts file must be in <code>refactored_trackit/</code> for Vite to serve the app correctly.</p>
   </section>
 
   <section>
@@ -270,6 +248,24 @@ trackIT/
   <section>
     <h2>Changelog</h2>
     <p>For detailed changes and updates, see <a href="CHANGELOG.md">CHANGELOG.md</a></p>
+  </section>
+
+  <section>
+    <h2>Recent Fixes</h2>
+    <ul>
+      <li>Resolved Vite/Tauri 404 and blank page issues by:
+        <ul>
+          <li>Ensuring only one index.html in project root, none in public/</li>
+          <li>Removing root property from vite.config.ts and using only one config file</li>
+          <li>Renaming postcss.config.js and tailwind.config.js to .cjs for ESM compatibility</li>
+          <li>Installing and configuring @tailwindcss/postcss for Tailwind v4</li>
+          <li>Verifying tauri.conf.json in src-tauri/ with correct beforeDevCommand and devPath</li>
+          <li>Running only pnpm tauri dev from inside refactored_trackit/</li>
+        </ul>
+      </li>
+      <li>Restored full CSS and formatting for the app</li>
+      <li>Documented correct dev workflow for Vite + Tauri</li>
+    </ul>
   </section>
 </body>
 </html> 
