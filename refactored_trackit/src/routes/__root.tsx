@@ -59,12 +59,12 @@ function RootLayout() {
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                <button
-                  type="button"
+                <Link
+                  to="/inventory/add"
                   className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Add Asset
-                </button>
+                </Link>
               </div>
             </div>
           </nav>
@@ -78,7 +78,7 @@ function RootLayout() {
   );
 }
 
-export const rootRoute = createRootRoute({
+export const Route = createRootRoute({
   component: RootLayout,
   notFoundComponent: () => <NotFound />,
 }); 

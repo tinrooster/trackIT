@@ -1,10 +1,11 @@
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
-import { router } from './routeTree'
+import { routeTree } from './routeTree.gen'
 import './styles.css'
 import reportWebVitals from './reportWebVitals.ts'
 import { getVersion } from '@tauri-apps/api/app'
+import { createRouter } from '@tanstack/react-router'
 
 // Debug logging helper
 const debug = {
@@ -20,6 +21,16 @@ const debug = {
 
 function isTauriApp() {
   return Boolean(window.__TAURI_IPC__) && window.location.protocol === 'tauri:'
+}
+
+// Create the router instance
+const router = createRouter({ routeTree })
+
+// Register the router instance for type safety
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
 }
 
 async function initApp() {

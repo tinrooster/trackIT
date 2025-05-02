@@ -18,16 +18,48 @@ const debug = {
 export type AssetCreateInput = Omit<Asset, 'id'>
 export type AssetUpdateInput = Partial<Asset>
 
-const assetKeys = {
-  all: ['assets'] as const,
-  lists: () => [...assetKeys.all, 'list'] as const,
-  list: (filters: Record<string, string>) => [...assetKeys.lists(), { filters }] as const,
-  details: () => [...assetKeys.all, 'detail'] as const,
-  detail: (id: string) => [...assetKeys.details(), id] as const,
+// IndexedDB setup
+const DB_NAME = 'trackIT_db'
+const STORE_NAME = 'assets'
+const DB_VERSION = 1
+
+let db: IDBDatabase | null = null
+
+async function initDB(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (db) {
+      resolve()
+      return
+    }
+
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
+
+    request.onerror = () => {
+      debug.error('Failed to open database')
+      reject(request.error)
+    }
+
+    request.onsuccess = () => {
+      db = request.result
+      debug.log('Database opened successfully')
+      resolve()
+    }
+
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' })
+        debug.log('Object store created')
+      }
+    }
+  })
 }
 
-function isTauriApp() {
-  return Boolean(window.__TAURI_IPC__) && window.location.protocol === 'tauri:'
+async function getStore(mode: IDBTransactionMode = 'readonly'): Promise<IDBObjectStore> {
+  await initDB()
+  if (!db) throw new Error('Database not initialized')
+  const transaction = db.transaction(STORE_NAME, mode)
+  return transaction.objectStore(STORE_NAME)
 }
 
 // Development mock data
@@ -38,9 +70,11 @@ const mockAssets = [
     type: 'Hardware',
     status: 'Available',
     location: {
-      id: '1',
-      name: 'Main Office'
+      buildingId: 'b1',
+      areaId: 'a1',
+      rackId: 'r1'
     },
+    project: 'p1',
     assignedTo: null
   },
   {
@@ -49,9 +83,10 @@ const mockAssets = [
     type: 'Software',
     status: 'In Use',
     location: {
-      id: '1',
-      name: 'Main Office'
+      buildingId: 'b2',
+      areaId: 'a3'
     },
+    project: 'p2',
     assignedTo: {
       id: '1',
       name: 'John Doe'
@@ -63,7 +98,7 @@ const mockAssets = [
 async function invokeCommand<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   debug.log(`Invoking command: ${command}`, args)
   
-  if (!isTauriApp()) {
+  if (!Boolean(window.__TAURI_IPC__) && window.location.protocol === 'tauri:') {
     debug.log('Not running in Tauri environment, using development data')
     
     // Simulate API delay
@@ -80,11 +115,14 @@ async function invokeCommand<T>(command: string, args?: Record<string, unknown>)
       case 'create_asset':
         const newAsset = {
           id: String(mockAssets.length + 1),
-          ...(args?.data as object),
-          location: {
-            id: '1',
-            name: 'Main Office'
-          }
+          name: (args?.data as any).name || 'New Asset',
+          type: (args?.data as any).type || 'Hardware',
+          status: (args?.data as any).status || 'Available',
+          location: (args?.data as any).location || {
+            buildingId: 'b1'
+          },
+          project: (args?.data as any).project,
+          assignedTo: null
         }
         mockAssets.push(newAsset)
         return { asset: newAsset } as T
@@ -115,99 +153,197 @@ async function invokeCommand<T>(command: string, args?: Record<string, unknown>)
   }
 }
 
+// Asset service implementation
 export const assetService = {
   // API calls
   async getAssets(): Promise<Asset[]> {
+    debug.log('Fetching all assets')
     try {
-      const assets = await invoke<Asset[]>('get_assets')
-      return assets
+      const store = await getStore()
+      return new Promise((resolve, reject) => {
+        const request = store.getAll()
+        request.onsuccess = () => {
+          debug.log('Successfully fetched assets:', request.result.length)
+          resolve(request.result)
+        }
+        request.onerror = () => {
+          debug.error('Failed to fetch assets:', request.error)
+          reject(request.error)
+        }
+      })
     } catch (error) {
-      console.error('Failed to fetch assets:', error)
+      debug.error('Failed to fetch assets:', error)
       throw error
     }
   },
 
   async getAsset(id: string): Promise<Asset> {
+    debug.log('Fetching asset by ID:', id)
     try {
-      const asset = await invoke<Asset>('get_asset', { id })
-      return asset
+      const store = await getStore()
+      return new Promise((resolve, reject) => {
+        const request = store.get(id)
+        request.onsuccess = () => {
+          if (!request.result) {
+            const error = new Error('Asset not found')
+            debug.error(error)
+            reject(error)
+            return
+          }
+          debug.log('Successfully fetched asset:', request.result)
+          resolve(request.result)
+        }
+        request.onerror = () => {
+          debug.error(`Failed to fetch asset ${id}:`, request.error)
+          reject(request.error)
+        }
+      })
     } catch (error) {
-      console.error(`Failed to fetch asset ${id}:`, error)
+      debug.error(`Failed to fetch asset ${id}:`, error)
       throw error
     }
   },
 
   async createAsset(asset: AssetCreateInput): Promise<Asset> {
+    debug.log('Creating new asset:', asset)
     try {
-      const newAsset = await invoke<Asset>('create_asset', { asset })
-      return newAsset
+      const store = await getStore('readwrite')
+      const newAsset: Asset = {
+        ...asset,
+        id: crypto.randomUUID(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+      return new Promise((resolve, reject) => {
+        const request = store.add(newAsset)
+        request.onsuccess = () => {
+          debug.log('Successfully created asset:', newAsset)
+          resolve(newAsset)
+        }
+        request.onerror = () => {
+          debug.error('Failed to create asset:', request.error)
+          reject(request.error)
+        }
+      })
     } catch (error) {
-      console.error('Failed to create asset:', error)
+      debug.error('Failed to create asset:', error)
       throw error
     }
   },
 
-  async updateAsset(id: string, asset: AssetUpdateInput): Promise<Asset> {
+  async updateAsset(id: string, assetUpdate: AssetUpdateInput): Promise<Asset> {
+    debug.log('Updating asset:', { id, updates: assetUpdate })
     try {
-      const updatedAsset = await invoke<Asset>('update_asset', { id, asset })
-      return updatedAsset
+      const store = await getStore('readwrite')
+      return new Promise((resolve, reject) => {
+        // First get the existing asset
+        const getRequest = store.get(id)
+        getRequest.onsuccess = () => {
+          if (!getRequest.result) {
+            const error = new Error('Asset not found')
+            debug.error(error)
+            reject(error)
+            return
+          }
+
+          const updatedAsset: Asset = {
+            ...getRequest.result,
+            ...assetUpdate,
+            updatedAt: new Date()
+          }
+
+          const putRequest = store.put(updatedAsset)
+          putRequest.onsuccess = () => {
+            debug.log('Successfully updated asset:', updatedAsset)
+            resolve(updatedAsset)
+          }
+          putRequest.onerror = () => {
+            debug.error(`Failed to update asset ${id}:`, putRequest.error)
+            reject(putRequest.error)
+          }
+        }
+        getRequest.onerror = () => {
+          debug.error(`Failed to fetch asset ${id} for update:`, getRequest.error)
+          reject(getRequest.error)
+        }
+      })
     } catch (error) {
-      console.error(`Failed to update asset ${id}:`, error)
+      debug.error(`Failed to update asset ${id}:`, error)
       throw error
     }
   },
 
   async deleteAsset(id: string): Promise<void> {
+    debug.log('Deleting asset:', id)
     try {
-      await invoke('delete_asset', { id })
+      const store = await getStore('readwrite')
+      return new Promise((resolve, reject) => {
+        const request = store.delete(id)
+        request.onsuccess = () => {
+          debug.log('Successfully deleted asset:', id)
+          resolve()
+        }
+        request.onerror = () => {
+          debug.error(`Failed to delete asset ${id}:`, request.error)
+          reject(request.error)
+        }
+      })
     } catch (error) {
-      console.error(`Failed to delete asset ${id}:`, error)
+      debug.error(`Failed to delete asset ${id}:`, error)
       throw error
     }
   },
 
   // React Query hooks
   useAssets() {
+    debug.log('Setting up useAssets hook')
     return useQuery<Asset[], Error>({
-      queryKey: assetKeys.lists(),
+      queryKey: ['assets'],
       queryFn: () => this.getAssets(),
     })
   },
 
   useAsset(id: string) {
+    debug.log('Setting up useAsset hook for ID:', id)
     return useQuery<Asset, Error>({
-      queryKey: assetKeys.detail(id),
+      queryKey: ['asset', id],
       queryFn: () => this.getAsset(id),
     })
   },
 
   useCreateAsset() {
+    debug.log('Setting up useCreateAsset hook')
     const queryClient = useQueryClient()
     return useMutation<Asset, Error, AssetCreateInput>({
       mutationFn: (asset) => this.createAsset(asset),
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: assetKeys.lists() })
+        debug.log('Asset creation successful, invalidating queries')
+        queryClient.invalidateQueries({ queryKey: ['assets'] })
       },
     })
   },
 
   useUpdateAsset() {
+    debug.log('Setting up useUpdateAsset hook')
     const queryClient = useQueryClient()
     return useMutation<Asset, Error, { id: string; asset: AssetUpdateInput }>({
       mutationFn: ({ id, asset }) => this.updateAsset(id, asset),
       onSuccess: (_, { id }) => {
-        queryClient.invalidateQueries({ queryKey: assetKeys.detail(id) })
-        queryClient.invalidateQueries({ queryKey: assetKeys.lists() })
+        debug.log('Asset update successful, invalidating queries')
+        queryClient.invalidateQueries({ queryKey: ['asset', id] })
+        queryClient.invalidateQueries({ queryKey: ['assets'] })
       },
     })
   },
 
   useDeleteAsset() {
+    debug.log('Setting up useDeleteAsset hook')
     const queryClient = useQueryClient()
     return useMutation<void, Error, string>({
       mutationFn: (id) => this.deleteAsset(id),
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: assetKeys.lists() })
+        debug.log('Asset deletion successful, invalidating queries')
+        queryClient.invalidateQueries({ queryKey: ['assets'] })
       },
     })
   },

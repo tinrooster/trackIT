@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { createRoute } from '@tanstack/react-router';
-import { rootRoute } from './__root';
+import { Route as rootRoute } from './__root';
 import { LocationSettings } from '../components/settings/LocationSettings';
 import { ProjectSettings } from '../components/settings/ProjectSettings';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -21,7 +21,7 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetError
   );
 }
 
-export const settingsRoute = createRoute({
+export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: 'settings',
   component: SettingsPage,

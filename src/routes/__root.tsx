@@ -1,8 +1,12 @@
 import * as React from 'react'
-import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
+import { createRootRouteWithContext, Link, Outlet } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { NotFound } from '../components/NotFound'
+
+export interface RouterContext {
+  queryClient: QueryClient
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,7 +46,10 @@ function RootLayout() {
   )
 }
 
-export const rootRoute = createRootRoute({
+export const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: RootLayout,
   notFoundComponent: () => <NotFound />,
+  context: {
+    queryClient,
+  },
 }) 

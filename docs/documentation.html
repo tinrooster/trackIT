@@ -146,6 +146,53 @@ trackIT/
   <section>
     <h2>Recent Updates</h2>
     <ul>
+      <li>Fixed routing issue for Asset Details Edit button:
+        <ul>
+          <li>Added missing <code>useParams</code> and <code>useNavigate</code> imports in <code>inventory.$assetId.tsx</code></li>
+          <li>Added missing <code>&lt;Outlet /&gt;</code> component in <code>inventory.$assetId.tsx</code> to render child routes</li>
+        </ul>
+      </li>
+      <li>Fixed infinite loop and stack overflow issues in settings components:
+        <ul>
+          <li>Removed problematic periodic refresh in LocationSettings</li>
+          <li>Removed unnecessary state synchronization effect that caused infinite loops</li>
+          <li>Implemented proper cleanup with mountedRef in both components</li>
+          <li>Added ErrorBoundary for better error handling</li>
+          <li>Improved connection status handling and automatic reconnection</li>
+          <li>Added proper loading states and empty state handling</li>
+          <li>Enhanced form validation and error messaging</li>
+          <li>Added accessibility improvements</li>
+        </ul>
+      </li>
+      <li>Improved error handling and storage management:
+        <ul>
+          <li>Created a shared types file to break circular dependencies</li>
+          <li>Implemented proper StorageError class for consistent error handling</li>
+          <li>Added error codes and detailed error information</li>
+          <li>Improved offline storage error handling</li>
+          <li>Enhanced type safety across storage services</li>
+        </ul>
+      </li>
+      <li>Fixed Tauri command registration:
+        <ul>
+          <li>Added proper command registration in tauri.conf.json</li>
+          <li>Added command descriptions and documentation</li>
+          <li>Fixed command parameter types</li>
+          <li>Improved error handling in Tauri commands</li>
+        </ul>
+      </li>
+      <li>Optimized LocationSettings component:
+        <ul>
+          <li>Added proper cleanup for periodic connection checks using mountedRef</li>
+          <li>Implemented ErrorBoundary for better error handling</li>
+          <li>Memoized location processing functions for better performance</li>
+          <li>Added proper ARIA labels for accessibility</li>
+          <li>Improved loading states and empty state handling</li>
+          <li>Added validation for location deletion with child locations</li>
+          <li>Enhanced offline mode handling with automatic reconnection</li>
+        </ul>
+      </li>
+      <li>Fixed webkit2gtk dependency conflict by using tauri-plugin-log from v1 branch</li>
       <li>Fixed duplicate command definitions in Rust backend</li>
       <li>Implemented proper Prisma client generation</li>
       <li>Resolved Tauri plugin compatibility issues</li>
@@ -153,6 +200,59 @@ trackIT/
       <li>Added proper build script for Prisma client generation</li>
       <li>Fixed dependency conflicts</li>
       <li>Updated plugin versions for compatibility</li>
+      <li>Migrated location settings from localStorage to SQLite database</li>
+      <li>Added proper error handling and loading states for database operations</li>
+      <li>Implemented Tauri commands for location CRUD operations</li>
+      <li>Added offline support with localStorage fallback</li>
+      <li>Implemented automatic online/offline detection</li>
+      <li>Added connection status indicator</li>
+      <li>Fixed TanStack Router v5 routing issues:
+        <ul>
+          <li>Updated import path in main.tsx from './routes' to './routeTree'</li>
+          <li>Fixed route path formats:
+            <ul>
+              <li>Route definitions now use paths without leading slashes (e.g., 'inventory', 'reports')</li>
+              <li>Navigation paths (Link and navigate calls) use leading slashes (e.g., '/inventory', '/reports')</li>
+            </ul>
+          </li>
+          <li>Fixed nested route structure:
+            <ul>
+              <li>Properly nested editAssetRoute under assetDetailRoute</li>
+              <li>Updated editAssetRoute path from 'inventory/$assetId/edit' to just 'edit'</li>
+              <li>Implemented correct route nesting in routeTree.tsx</li>
+            </ul>
+          </li>
+          <li>Fixed 404 errors when saving changes in Edit Asset form</li>
+        </ul>
+      </li>
+      <li>Fixed navigation in asset table:
+        <ul>
+          <li>Fixed asset name link path to use leading slash</li>
+          <li>Changed edit button to use Link component with correct path</li>
+          <li>Ensured consistent path format across all navigation elements</li>
+        </ul>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Storage Implementation</h2>
+    <ul>
+      <li>Settings Storage
+        <ul>
+          <li>Primary: SQLite database through Prisma</li>
+          <li>Fallback: localStorage for offline support</li>
+          <li>Automatic online/offline detection</li>
+          <li>Seamless fallback to offline storage when database is unavailable</li>
+          <li>Periodic connection checks (every 30 seconds)</li>
+          <li>Visual indicator for connection status</li>
+          <li>Data persistence in both online and offline modes</li>
+          <li>Centralized storage service in <code>lib/storageService.ts</code></li>
+          <li>Offline storage service in <code>lib/fallbackStorageService.ts</code></li>
+          <li>Tauri commands for database operations in <code>src-tauri/src/commands.rs</code></li>
+          <li>Type-safe operations in both modes</li>
+        </ul>
+      </li>
     </ul>
   </section>
 

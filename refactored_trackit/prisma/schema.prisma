@@ -46,6 +46,8 @@ model Asset {
   locationId        String
   assignedTo        User?        @relation(fields: [assignedToId], references: [id])
   assignedToId      String?
+  project           Project?     @relation(fields: [projectId], references: [id])
+  projectId         String?
   transactions      Transaction[]
   maintenanceLogs   MaintenanceLog[]
 }
@@ -106,4 +108,18 @@ model Consumable {
   // Relations
   location      Location @relation(fields: [locationId], references: [id])
   locationId    String
+}
+
+model Project {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  status      String    @default("PLANNED")
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  assets      Asset[]
 }

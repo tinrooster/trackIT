@@ -27,6 +27,12 @@
         "unmaximize": true,
         "unminimize": true,
         "startDragging": true
+      },
+      "fs": {
+        "all": false,
+        "readFile": true,
+        "writeFile": true,
+        "exists": true
       }
     },
     "bundle": {

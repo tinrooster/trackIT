@@ -7,16 +7,29 @@ export interface Asset {
   purchaseDate?: string
   notes?: string
   location: Location
+  project?: Project
   assignedTo?: User
   maintenanceLogs?: MaintenanceLog[]
   transactions?: Transaction[]
   documents?: Document[]
+  currentLevel?: number
 }
 
 export interface Location {
   id: string
+  buildingId: string
+  areaId?: string
+  rackId?: string
+  cabinetId?: string
+  roomId?: string
+  name?: string
+}
+
+export interface LocationDetails {
+  id: string
   name: string
-  type: string
+  type: 'Building' | 'Area' | 'Rack' | 'Cabinet'
+  parentId?: string
   description?: string
 }
 
@@ -52,4 +65,23 @@ export interface Document {
   assetId: string
   uploadedBy?: string
   fileUrl: string
+}
+
+export interface Project {
+  id: string
+  name: string
+  description?: string
+}
+
+export interface AssetUpdateInput {
+  name?: string
+  type?: string
+  status?: string
+  serialNumber?: string | null
+  purchaseDate?: string | null
+  notes?: string | null
+  locationId?: string | null
+  projectId?: string | null
+  assignedToId?: string | null
+  currentLevel?: number | null
 } 

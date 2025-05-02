@@ -11,14 +11,30 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as SettingsImport } from './routes/settings'
+import { Route as ReportsImport } from './routes/reports'
 import { Route as InventoryImport } from './routes/inventory'
 import { Route as IndexImport } from './routes/index'
+import { Route as InventoryAddImport } from './routes/inventory.add'
+import { Route as InventoryAssetIdImport } from './routes/inventory.$assetId'
 import { Route as DemoTanstackQueryImport } from './routes/demo.tanstack-query'
 import { Route as DemoTableImport } from './routes/demo/table'
 import { Route as DemoStoreImport } from './routes/demo.store'
 import { Route as ApiAssetsImport } from './routes/api.assets'
 
 // Create/Update Routes
+
+const SettingsRoute = SettingsImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ReportsRoute = ReportsImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRoute,
+} as any)
 
 const InventoryRoute = InventoryImport.update({
   id: '/inventory',
@@ -30,6 +46,18 @@ const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRoute,
+} as any)
+
+const InventoryAddRoute = InventoryAddImport.update({
+  id: '/add',
+  path: '/add',
+  getParentRoute: () => InventoryRoute,
+} as any)
+
+const InventoryAssetIdRoute = InventoryAssetIdImport.update({
+  id: '/$assetId',
+  path: '/$assetId',
+  getParentRoute: () => InventoryRoute,
 } as any)
 
 const DemoTanstackQueryRoute = DemoTanstackQueryImport.update({
@@ -74,6 +102,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryImport
       parentRoute: typeof rootRoute
     }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsImport
+      parentRoute: typeof rootRoute
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsImport
+      parentRoute: typeof rootRoute
+    }
     '/api/assets': {
       id: '/api/assets'
       path: '/api/assets'
@@ -102,37 +144,77 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoTanstackQueryImport
       parentRoute: typeof rootRoute
     }
+    '/inventory/$assetId': {
+      id: '/inventory/$assetId'
+      path: '/$assetId'
+      fullPath: '/inventory/$assetId'
+      preLoaderRoute: typeof InventoryAssetIdImport
+      parentRoute: typeof InventoryImport
+    }
+    '/inventory/add': {
+      id: '/inventory/add'
+      path: '/add'
+      fullPath: '/inventory/add'
+      preLoaderRoute: typeof InventoryAddImport
+      parentRoute: typeof InventoryImport
+    }
   }
 }
 
 // Create and export the route tree
 
+interface InventoryRouteChildren {
+  InventoryAssetIdRoute: typeof InventoryAssetIdRoute
+  InventoryAddRoute: typeof InventoryAddRoute
+}
+
+const InventoryRouteChildren: InventoryRouteChildren = {
+  InventoryAssetIdRoute: InventoryAssetIdRoute,
+  InventoryAddRoute: InventoryAddRoute,
+}
+
+const InventoryRouteWithChildren = InventoryRoute._addFileChildren(
+  InventoryRouteChildren,
+)
+
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/inventory': typeof InventoryRoute
+  '/inventory': typeof InventoryRouteWithChildren
+  '/reports': typeof ReportsRoute
+  '/settings': typeof SettingsRoute
   '/api/assets': typeof ApiAssetsRoute
   '/demo/store': typeof DemoStoreRoute
   '/demo/table': typeof DemoTableRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/inventory/$assetId': typeof InventoryAssetIdRoute
+  '/inventory/add': typeof InventoryAddRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/inventory': typeof InventoryRoute
+  '/inventory': typeof InventoryRouteWithChildren
+  '/reports': typeof ReportsRoute
+  '/settings': typeof SettingsRoute
   '/api/assets': typeof ApiAssetsRoute
   '/demo/store': typeof DemoStoreRoute
   '/demo/table': typeof DemoTableRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/inventory/$assetId': typeof InventoryAssetIdRoute
+  '/inventory/add': typeof InventoryAddRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
-  '/inventory': typeof InventoryRoute
+  '/inventory': typeof InventoryRouteWithChildren
+  '/reports': typeof ReportsRoute
+  '/settings': typeof SettingsRoute
   '/api/assets': typeof ApiAssetsRoute
   '/demo/store': typeof DemoStoreRoute
   '/demo/table': typeof DemoTableRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/inventory/$assetId': typeof InventoryAssetIdRoute
+  '/inventory/add': typeof InventoryAddRoute
 }
 
 export interface FileRouteTypes {
@@ -140,32 +222,46 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/inventory'
+    | '/reports'
+    | '/settings'
     | '/api/assets'
     | '/demo/store'
     | '/demo/table'
     | '/demo/tanstack-query'
+    | '/inventory/$assetId'
+    | '/inventory/add'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/inventory'
+    | '/reports'
+    | '/settings'
     | '/api/assets'
     | '/demo/store'
     | '/demo/table'
     | '/demo/tanstack-query'
+    | '/inventory/$assetId'
+    | '/inventory/add'
   id:
     | '__root__'
     | '/'
     | '/inventory'
+    | '/reports'
+    | '/settings'
     | '/api/assets'
     | '/demo/store'
     | '/demo/table'
     | '/demo/tanstack-query'
+    | '/inventory/$assetId'
+    | '/inventory/add'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  InventoryRoute: typeof InventoryRoute
+  InventoryRoute: typeof InventoryRouteWithChildren
+  ReportsRoute: typeof ReportsRoute
+  SettingsRoute: typeof SettingsRoute
   ApiAssetsRoute: typeof ApiAssetsRoute
   DemoStoreRoute: typeof DemoStoreRoute
   DemoTableRoute: typeof DemoTableRoute
@@ -174,7 +270,9 @@ export interface RootRouteChildren {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  InventoryRoute: InventoryRoute,
+  InventoryRoute: InventoryRouteWithChildren,
+  ReportsRoute: ReportsRoute,
+  SettingsRoute: SettingsRoute,
   ApiAssetsRoute: ApiAssetsRoute,
   DemoStoreRoute: DemoStoreRoute,
   DemoTableRoute: DemoTableRoute,
@@ -193,6 +291,8 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/inventory",
+        "/reports",
+        "/settings",
         "/api/assets",
         "/demo/store",
         "/demo/table",
@@ -203,7 +303,17 @@ export const routeTree = rootRoute
       "filePath": "index.tsx"
     },
     "/inventory": {
-      "filePath": "inventory.tsx"
+      "filePath": "inventory.tsx",
+      "children": [
+        "/inventory/$assetId",
+        "/inventory/add"
+      ]
+    },
+    "/reports": {
+      "filePath": "reports.tsx"
+    },
+    "/settings": {
+      "filePath": "settings.tsx"
     },
     "/api/assets": {
       "filePath": "api.assets.tsx"
@@ -216,6 +326,14 @@ export const routeTree = rootRoute
     },
     "/demo/tanstack-query": {
       "filePath": "demo.tanstack-query.tsx"
+    },
+    "/inventory/$assetId": {
+      "filePath": "inventory.$assetId.tsx",
+      "parent": "/inventory"
+    },
+    "/inventory/add": {
+      "filePath": "inventory.add.tsx",
+      "parent": "/inventory"
     }
   }
 }

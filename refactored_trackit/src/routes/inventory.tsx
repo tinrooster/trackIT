@@ -1,11 +1,11 @@
 import * as React from 'react';
 import { createRoute, Link, useNavigate } from '@tanstack/react-router';
-import { rootRoute } from './__root';
+import { Route as rootRoute } from './__root';
 import { AssetTable } from '../components/inventory/AssetTable';
 import { assetService } from '../services/asset.service';
 import type { Asset } from '../types';
 
-export const inventoryRoute = createRoute({
+export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: 'inventory',
   component: InventoryPage,
@@ -45,13 +45,6 @@ function InventoryPage() {
     if (!assets) return [];
     return Array.from(new Set(assets.map(asset => asset.status)));
   }, [assets]);
-
-  const handleEdit = (asset: Asset) => {
-    navigate({ 
-      to: '/inventory/$assetId/edit',
-      params: { assetId: asset.id }
-    });
-  };
 
   const handleDelete = async (asset: Asset) => {
     if (window.confirm(`Are you sure you want to delete ${asset.name}?`)) {
@@ -167,7 +160,6 @@ function InventoryPage() {
 
       <AssetTable
         assets={filteredAssets}
-        onEdit={handleEdit}
         onDelete={handleDelete}
       />
     </div>

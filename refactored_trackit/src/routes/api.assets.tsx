@@ -1,10 +1,10 @@
 import * as React from 'react';
 import { createRoute } from '@tanstack/react-router';
-import { rootRoute } from './__root';
+import { Route as rootRoute } from './__root';
 import { assetService } from '../services/asset.service';
-import type { Asset } from '../types/asset';
+import type { Asset } from '../types';
 
-export const assetsRoute = createRoute({
+export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: '/api/assets',
   loader: async () => {

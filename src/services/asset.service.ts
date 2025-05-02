@@ -7,6 +7,7 @@ declare global {
 
 import { invoke } from '@tauri-apps/api/tauri';
 import { Asset, AssetCreateInput, AssetUpdateInput } from '../types/asset';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 // Debug logging helper
 const debug = {
@@ -255,3 +256,74 @@ async function invokeCommand<T>(command: string, args?: Record<string, unknown>)
     throw error;
   }
 } 
+
+// Asset service functions
+const getAssets = async (): Promise<Asset[]> => {
+  return invokeCommand<Asset[]>('get_assets');
+};
+
+const getAsset = async (id: string): Promise<Asset> => {
+  return invokeCommand<Asset>('get_asset', { id });
+};
+
+const createAsset = async (asset: AssetCreateInput): Promise<Asset> => {
+  return invokeCommand<Asset>('create_asset', { asset });
+};
+
+const updateAsset = async ({ id, asset }: { id: string; asset: AssetUpdateInput }): Promise<Asset> => {
+  return invokeCommand<Asset>('update_asset', { id, asset });
+};
+
+const deleteAsset = async (id: string): Promise<void> => {
+  return invokeCommand<void>('delete_asset', { id });
+};
+
+// React Query hooks
+const useAssets = () => {
+  return useQuery({
+    queryKey: ['assets'],
+    queryFn: getAssets,
+  });
+};
+
+const useAsset = (id: string) => {
+  return useQuery({
+    queryKey: ['asset', id],
+    queryFn: () => getAsset(id),
+  });
+};
+
+const useCreateAsset = () => {
+  return useMutation({
+    mutationFn: createAsset,
+  });
+};
+
+const useUpdateAsset = () => {
+  return useMutation({
+    mutationFn: updateAsset,
+  });
+};
+
+const useDeleteAsset = () => {
+  return useMutation({
+    mutationFn: deleteAsset,
+  });
+};
+
+// Export the service
+export const assetService = {
+  // Direct functions
+  getAssets,
+  getAsset,
+  createAsset,
+  updateAsset,
+  deleteAsset,
+  
+  // React Query hooks
+  useAssets,
+  useAsset,
+  useCreateAsset,
+  useUpdateAsset,
+  useDeleteAsset,
+}; 
