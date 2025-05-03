@@ -4,6 +4,8 @@ import { Route as rootRoute } from './__root';
 import { LocationSettings } from '../components/settings/LocationSettings';
 import { ProjectSettings } from '../components/settings/ProjectSettings';
 import { ErrorBoundary } from 'react-error-boundary';
+import { invoke } from '@tauri-apps/api/tauri';
+import { readTextFile, BaseDirectory } from '@tauri-apps/api/fs';
 
 // Error fallback component
 function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
@@ -66,15 +68,111 @@ const UsersTab = React.memo(() => (
   </div>
 ));
 
+const LogsTab = React.memo(() => {
+  const [logs, setLogs] = React.useState<string[]>([]);
+  const [level, setLevel] = React.useState<string>('INFO');
+  const [lines, setLines] = React.useState<number>(100);
+  const [loading, setLoading] = React.useState(false);
+
+  const fetchLogs = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await invoke<string[]>('plugin:log|get_logs', { lines, level });
+      if (result && result.length > 0) {
+        setLogs(result);
+      } else {
+        // Fallback: read log file from disk
+        // Try common log file names, adjust as needed for your app
+        const logFileNames = [
+          'trackit.log',
+          'trackit-app.log',
+          'app.log',
+        ];
+        let fileContent = '';
+        for (const fileName of logFileNames) {
+          try {
+            fileContent = await readTextFile(fileName, { dir: BaseDirectory.AppData });
+            if (fileContent) break;
+          } catch {}
+        }
+        setLogs(fileContent ? fileContent.split('\n').slice(-lines) : ['No logs found.']);
+      }
+    } catch {
+      setLogs(['Failed to load logs.']);
+    } finally {
+      setLoading(false);
+    }
+  }, [lines, level]);
+
+  React.useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white shadow rounded-lg">
+        <div className="px-4 py-5 sm:p-6">
+          <h3 className="text-lg font-medium leading-6 text-gray-900">Application & Database Logs</h3>
+          <div className="mt-2 max-w-xl text-sm text-gray-500">
+            <p>Recent application and database activity logs. Use the controls below to filter and refresh logs.</p>
+          </div>
+          <div className="flex flex-wrap gap-4 items-center mt-4 mb-2">
+            <label className="text-sm">
+              Level:
+              <select
+                className="ml-2 border rounded px-2 py-1"
+                value={level}
+                onChange={e => setLevel(e.target.value)}
+                aria-label="Log level filter"
+              >
+                <option value="TRACE">Trace</option>
+                <option value="DEBUG">Debug</option>
+                <option value="INFO">Info</option>
+                <option value="WARN">Warn</option>
+                <option value="ERROR">Error</option>
+              </select>
+            </label>
+            <label className="text-sm">
+              Lines:
+              <input
+                type="number"
+                min={10}
+                max={1000}
+                step={10}
+                className="ml-2 border rounded px-2 py-1 w-20"
+                value={lines}
+                onChange={e => setLines(Number(e.target.value))}
+                aria-label="Number of log lines"
+              />
+            </label>
+            <button
+              className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+              onClick={fetchLogs}
+              disabled={loading}
+              aria-label="Refresh logs"
+            >
+              {loading ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
+          <pre className="mt-4 p-2 bg-gray-100 rounded text-xs overflow-x-auto max-h-96" aria-label="Application and database logs">
+            {logs.length ? logs.join('\n') : 'No logs found.'}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 function SettingsPage() {
-  const [activeTab, setActiveTab] = React.useState<'locations' | 'projects' | 'general' | 'users'>('general');
+  const [activeTab, setActiveTab] = React.useState<'locations' | 'projects' | 'general' | 'users' | 'logs'>('general');
 
   // Memoize tab content to prevent unnecessary re-renders
   const tabContent = React.useMemo(() => ({
     general: <GeneralTab />,
     locations: <LocationTab />,
     projects: <ProjectTab />,
-    users: <UsersTab />
+    users: <UsersTab />,
+    logs: <LogsTab />
   }), []);
 
   return (
@@ -130,6 +228,16 @@ function SettingsPage() {
               `}
             >
               Users
+            </button>
+            <button
+              onClick={() => setActiveTab('logs')}
+              className={`
+                border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300
+                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                ${activeTab === 'logs' ? 'border-blue-500 text-blue-600' : ''}
+              `}
+            >
+              Logs
             </button>
           </nav>
         </div>

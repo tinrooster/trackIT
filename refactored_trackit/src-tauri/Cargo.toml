@@ -16,7 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "1.5.0", features = [] }
-prisma-client-rust-cli = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.8", default-features = false, features = ["sqlite"] }
+prisma-client-rust-cli = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.8", default-features = false, features = ["mysql"] }
 
 [dependencies]
 serde_json = "1.0"
@@ -25,7 +25,7 @@ tauri = { version = "1.5.0", features = [ "fs-read-file", "fs-write-file", "fs-e
 tokio = { version = "1.36", features = ["full", "rt-multi-thread"] }
 log = "0.4"
 tauri-plugin-log = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
-prisma-client-rust = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.8", default-features = false, features = ["sqlite", "migrations"] }
+prisma-client-rust = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.8", default-features = false, features = ["mysql", "migrations"] }
 futures = "0.3"
 rusqlite = { version = "0.25.4", features = ["bundled"] }
 

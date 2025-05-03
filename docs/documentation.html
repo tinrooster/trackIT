@@ -97,10 +97,10 @@ trackIT/
     <h2>Backend Architecture</h2>
     <h3>Database Integration</h3>
     <ul>
-      <li>Uses Prisma with SQLite for data persistence</li>
-      <li>Automatic client generation during build</li>
-      <li>Type-safe database operations</li>
-      <li>Migration support for schema changes</li>
+      <li>Uses Prisma with <b>MySQL</b> for data persistence</li>
+      <li>All models (User, Asset, Location, Project, Transaction, MaintenanceLog, Consumable) are defined in <code>prisma/schema.prisma</code></li>
+      <li>Run <code>pnpm prisma migrate dev</code> from the project root to apply schema changes</li>
+      <li>See <code>DATABASE_SETUP.md</code> for full details on database setup and reconnection</li>
     </ul>
 
     <h3>Tauri Commands</h3>
@@ -218,7 +218,7 @@ trackIT/
     <ul>
       <li>Settings Storage
         <ul>
-          <li>Primary: SQLite database through Prisma</li>
+          <li>Primary: MySQL database through Prisma</li>
           <li>Fallback: localStorage for offline support</li>
           <li>Automatic online/offline detection</li>
           <li>Seamless fallback to offline storage when database is unavailable</li>

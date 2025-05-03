@@ -16,6 +16,7 @@ use tauri_plugin_log::{LogTarget, LoggerBuilder};
 use crate::db::get_client;
 use serde::{Serialize, Deserialize};
 use prisma_client_rust::QueryError;
+use log::info;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Asset {
@@ -281,6 +282,7 @@ async fn delete_project(id: String, client: tauri::State<'_, PrismaClient>) -> R
 
 #[tokio::main]
 async fn main() {
+    info!("Test log: backend started");
     let logger = LoggerBuilder::new()
         .targets([
             LogTarget::Stdout,

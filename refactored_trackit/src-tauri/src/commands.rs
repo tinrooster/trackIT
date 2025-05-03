@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::db::get_client;
 use crate::prisma::{location, project, PrismaClient};
 use tauri::State;
+use log::{info, error};
 
 #[derive(Debug, Serialize)]
 pub struct Asset {
@@ -47,6 +48,7 @@ pub struct ProjectData {
 
 #[tauri::command]
 pub async fn get_assets() -> Result<Vec<Asset>, String> {
+    info!("Fetching all assets");
     let client = get_client().await;
     let assets = client
         .asset()
@@ -57,13 +59,16 @@ pub async fn get_assets() -> Result<Vec<Asset>, String> {
         }))
         .exec()
         .await
-        .map_err(|e| e.to_string())?;
-
+        .map_err(|e| {
+            error!("Failed to fetch assets: {}", e);
+            e.to_string()
+        })?;
     Ok(assets)
 }
 
 #[tauri::command]
 pub async fn get_asset(id: String) -> Result<Asset, String> {
+    info!("Fetching asset with id: {}", id);
     let client = get_client().await;
     let asset = client
         .asset()
@@ -76,9 +81,14 @@ pub async fn get_asset(id: String) -> Result<Asset, String> {
         }))
         .exec()
         .await
-        .map_err(|e| e.to_string())?
-        .ok_or("Asset not found".to_string())?;
-
+        .map_err(|e| {
+            error!("Failed to fetch asset {}: {}", id, e);
+            e.to_string()
+        })?
+        .ok_or_else(|| {
+            error!("Asset not found: {}", id);
+            "Asset not found".to_string()
+        })?;
     Ok(asset)
 }
 
@@ -97,21 +107,27 @@ pub async fn create_location(
     location_data: LocationData,
     client: State<'_, PrismaClient>,
 ) -> Result<location::Data, String> {
+    info!("Creating location: {}", location_data.name);
     let mut params = vec![
-        location::name::set(location_data.name),
-        location::type_::set(location_data.type_),
+        location::name::set(location_data.name.clone()),
+        location::type_::set(location_data.type_.clone()),
     ];
-
-    if let Some(parent_id) = location_data.parent_id {
+    if let Some(parent_id) = location_data.parent_id.clone() {
         params.push(location::parent_location_id::set(Some(parent_id)));
     }
-
     client
         .location()
         .create(params)
         .exec()
         .await
-        .map_err(|e| e.to_string())
+        .map(|loc| {
+            info!("Location created: {}", loc.id);
+            loc
+        })
+        .map_err(|e| {
+            error!("Failed to create location: {}", e);
+            e.to_string()
+        })
 }
 
 #[tauri::command]
@@ -166,29 +182,33 @@ pub async fn create_project(
     project_data: ProjectData,
     client: State<'_, PrismaClient>,
 ) -> Result<project::Data, String> {
+    info!("Creating project: {}", project_data.name);
     let mut params = vec![
-        project::name::set(project_data.name),
-        project::status::set(project_data.status),
+        project::name::set(project_data.name.clone()),
+        project::status::set(project_data.status.clone()),
     ];
-
-    if let Some(description) = project_data.description {
+    if let Some(description) = project_data.description.clone() {
         params.push(project::description::set(Some(description)));
     }
-
-    if let Some(start_date) = project_data.start_date {
+    if let Some(start_date) = project_data.start_date.clone() {
         params.push(project::start_date::set(Some(start_date.parse().map_err(|e| e.to_string())?)));
     }
-
-    if let Some(end_date) = project_data.end_date {
+    if let Some(end_date) = project_data.end_date.clone() {
         params.push(project::end_date::set(Some(end_date.parse().map_err(|e| e.to_string())?)));
     }
-
     client
         .project()
         .create(params)
         .exec()
         .await
-        .map_err(|e| e.to_string())
+        .map(|proj| {
+            info!("Project created: {}", proj.id);
+            proj
+        })
+        .map_err(|e| {
+            error!("Failed to create project: {}", e);
+            e.to_string()
+        })
 }
 
 #[tauri::command]
@@ -196,22 +216,31 @@ pub async fn delete_project(
     id: String,
     client: State<'_, PrismaClient>,
 ) -> Result<project::Data, String> {
-    // First check if project has any assets
+    info!("Deleting project: {}", id);
     let assets = client
         .asset()
         .find_many(vec![asset::project_id::equals(Some(id.clone()))])
         .exec()
         .await
-        .map_err(|e| e.to_string())?;
-
+        .map_err(|e| {
+            error!("Failed to check assets for project {}: {}", id, e);
+            e.to_string()
+        })?;
     if !assets.is_empty() {
+        error!("Cannot delete project {}: has assigned assets", id);
         return Err("Cannot delete project that has assigned assets".to_string());
     }
-
     client
         .project()
-        .delete(project::id::equals(id))
+        .delete(project::id::equals(id.clone()))
         .exec()
         .await
-        .map_err(|e| e.to_string())
+        .map(|proj| {
+            info!("Project deleted: {}", proj.id);
+            proj
+        })
+        .map_err(|e| {
+            error!("Failed to delete project {}: {}", id, e);
+            e.to_string()
+        })
 } 
