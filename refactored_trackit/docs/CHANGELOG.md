@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved performance by decoupling UI from backend operations
 - Limited recursion depth in location path calculation
 - Improved cleanup for periodic operations
+- Migrated all modules to ESM (`export`/`import` syntax) for compatibility with Vite and modern tooling.
+- Removed all duplicate `.js` files where a `.tsx` or `.ts` version exists.
+- Standardized all component and service exports:
+  - Default exports for components imported as `import X from ...`
+  - Named exports for `import { X } from ... }`
+- Fixed all import/export errors related to module system mismatches.
+- Ensured all route and component files use a single, consistent file extension and export style.
 
 ### Fixed
 - Fixed "Maximum call stack size exceeded" errors in Locations and Projects settings tabs
