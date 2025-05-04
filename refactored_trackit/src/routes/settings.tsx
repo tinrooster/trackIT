@@ -1,8 +1,8 @@
 import * as React from 'react';
 import { createRoute } from '@tanstack/react-router';
 import { Route as rootRoute } from './__root';
-import { LocationSettings } from '../components/settings/LocationSettings';
-import { ProjectSettings } from '../components/settings/ProjectSettings';
+import LocationSettings from '../components/settings/LocationSettings';
+import ProjectSettings from '../components/settings/ProjectSettings';
 import { ErrorBoundary } from 'react-error-boundary';
 import { invoke } from '@tauri-apps/api/tauri';
 import { readTextFile, BaseDirectory } from '@tauri-apps/api/fs';
@@ -104,6 +104,16 @@ const LogsTab = React.memo(() => {
     }
   }, [lines, level]);
 
+  // Add test log entry function
+  const createTestLog = async () => {
+    try {
+      await invoke('test_log_entry');
+      fetchLogs();
+    } catch {
+      // Optionally handle error
+    }
+  };
+
   React.useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
@@ -152,6 +162,14 @@ const LogsTab = React.memo(() => {
               aria-label="Refresh logs"
             >
               {loading ? 'Refreshing...' : 'Refresh'}
+            </button>
+            <button
+              className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+              onClick={createTestLog}
+              aria-label="Create test log entry"
+              type="button"
+            >
+              Create Test Log Entry
             </button>
           </div>
           <pre className="mt-4 p-2 bg-gray-100 rounded text-xs overflow-x-auto max-h-96" aria-label="Application and database logs">

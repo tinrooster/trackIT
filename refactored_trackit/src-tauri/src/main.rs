@@ -280,6 +280,12 @@ async fn delete_project(id: String, client: tauri::State<'_, PrismaClient>) -> R
     })
 }
 
+#[tauri::command]
+async fn test_log_entry() -> Result<String, String> {
+    info!("Test log: backend started");
+    Ok("Test log entry successful".to_string())
+}
+
 #[tokio::main]
 async fn main() {
     info!("Test log: backend started");
@@ -305,7 +311,8 @@ async fn main() {
             delete_location,
             get_projects,
             create_project,
-            delete_project
+            delete_project,
+            test_log_entry
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

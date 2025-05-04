@@ -15,4 +15,6 @@ export default function ScanAndImport() {
 
   const handleScan = async (data: string) => {
     setIsScanning(false)
-    // Here we'll add the API call to look 
+    // Here we'll add the API call to look
+  }
+} 

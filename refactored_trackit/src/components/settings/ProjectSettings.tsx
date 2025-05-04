@@ -300,4 +300,6 @@ export function ProjectSettings() {
       </div>
     </ErrorBoundary>
   );
-} 
+}
+
+export default ProjectSettings; 

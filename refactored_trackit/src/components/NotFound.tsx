@@ -19,4 +19,6 @@ export function NotFound() {
       </div>
     </div>
   );
-} 
+}
+
+export default NotFound; 

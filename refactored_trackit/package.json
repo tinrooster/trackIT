@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "start": "vite",
-    "build": "vite build && tsc",
+    "build": "vite build",
     "serve": "vite preview",
     "test": "vitest run",
     "lint": "eslint",

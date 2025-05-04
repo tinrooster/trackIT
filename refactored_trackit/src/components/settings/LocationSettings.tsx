@@ -317,4 +317,6 @@ export function LocationSettings() {
       </div>
     </ErrorBoundary>
   );
-} 
+}
+
+export default LocationSettings; 

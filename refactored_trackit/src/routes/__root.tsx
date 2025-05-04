@@ -2,7 +2,7 @@ import * as React from 'react';
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { NotFound } from '../components/NotFound';
+import NotFound from '../components/NotFound';
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -243,4 +243,10 @@ pub async fn delete_project(
             error!("Failed to delete project {}: {}", id, e);
             e.to_string()
         })
+}
+
+#[tauri::command]
+pub async fn test_log_entry() -> Result<(), String> {
+    info!("Test log entry from frontend trigger");
+    Ok(())
 } 

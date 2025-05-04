@@ -88,12 +88,13 @@ export function AddAssetForm() {
       serialNumber: formData.get('serialNumber') as string,
       barcode: formData.get('barcode') as string,
       location: {
+        id: `${selectedLocation.buildingId}-${selectedLocation.areaId}-${selectedLocation.rackId}-${selectedLocation.cabinetId}`,
         buildingId: selectedLocation.buildingId,
         areaId: selectedLocation.areaId,
         rackId: selectedLocation.rackId,
         cabinetId: selectedLocation.cabinetId
       },
-      project: formData.get('project') as string,
+      project: mockProjects.find(p => p.id === formData.get('project')),
       inService: {
         status: true,
         startDate: new Date()
