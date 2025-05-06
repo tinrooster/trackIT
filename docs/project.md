@@ -66,4 +66,12 @@
 
 ---
 
-_This document will be updated as the project evolves. See `memory.md` for a running log of decisions and changes._ 
+## [YYYY-MM-DD] Note: Vite/React blank page and createRoot error fix
+- Fixed blank page and createRoot export error by:
+  - Correcting TanStack Router plugin import in vite.config.ts
+  - Removing optimizeDeps exclude for react-dom/client
+  - Ensuring React 18.2.0 is used everywhere
+  - Restarting Vite on a new port if needed
+- App now loads and runs as expected
+
+_This document will be updated as the project evolves. See `

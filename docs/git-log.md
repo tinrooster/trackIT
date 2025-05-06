@@ -143,6 +143,13 @@ Below is the git commit history for the repository, starting with the most recen
 
 ---
 
+### [YYYY-MM-DD] Fixed Vite/React blank page and createRoot error
+- Corrected Vite config plugin import for TanStack Router.
+- Removed problematic optimizeDeps exclude for react-dom/client.
+- Updated port handling in Vite config.
+- Verified React 18.2.0 is used everywhere.
+- App now loads and runs as expected.
+
 ## How to Update This File
 
 To update this file with the current git history, run the following PowerShell command from the repository root:
