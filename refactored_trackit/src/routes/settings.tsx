@@ -6,6 +6,7 @@ import ProjectSettings from '../components/settings/ProjectSettings';
 import { ErrorBoundary } from 'react-error-boundary';
 import { invoke } from '@tauri-apps/api/tauri';
 import { readTextFile, BaseDirectory } from '@tauri-apps/api/fs';
+import { exportOfflineDataToSql } from '../lib/exportToSql';
 
 // Error fallback component
 function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
@@ -42,18 +43,77 @@ const ProjectTab = React.memo(() => (
   </ErrorBoundary>
 ));
 
-const GeneralTab = React.memo(() => (
-  <div className="space-y-6">
-    <div className="bg-white shadow rounded-lg">
-      <div className="px-4 py-5 sm:p-6">
-        <h3 className="text-lg font-medium leading-6 text-gray-900">General Settings</h3>
-        <div className="mt-2 max-w-xl text-sm text-gray-500">
-          <p>Basic application configuration and preferences.</p>
+const GeneralTab = React.memo(() => {
+  const [exportStatus, setExportStatus] = React.useState<'idle' | 'in-progress' | 'success' | 'error'>('idle');
+  const [exportMessage, setExportMessage] = React.useState<string>('');
+
+  // On-demand export handler
+  const handleExport = async () => {
+    setExportStatus('in-progress');
+    setExportMessage('Exporting offline data to SQL...');
+    try {
+      await exportOfflineDataToSql();
+      setExportStatus('success');
+      setExportMessage('Export completed successfully.');
+    } catch (err) {
+      setExportStatus('error');
+      setExportMessage('Export failed. See console for details.');
+    }
+  };
+
+  // Scheduled export: every 24h (86400000ms)
+  React.useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        setExportStatus('in-progress');
+        setExportMessage('Scheduled export running...');
+        await exportOfflineDataToSql();
+        setExportStatus('success');
+        setExportMessage('Scheduled export completed.');
+      } catch {
+        setExportStatus('error');
+        setExportMessage('Scheduled export failed.');
+      }
+    }, 86400000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white shadow rounded-lg">
+        <div className="px-4 py-5 sm:p-6">
+          <h3 className="text-lg font-medium leading-6 text-gray-900">General Settings</h3>
+          <div className="mt-2 max-w-xl text-sm text-gray-500">
+            <p>Basic application configuration and preferences.</p>
+          </div>
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 w-max"
+              onClick={handleExport}
+              disabled={exportStatus === 'in-progress'}
+              aria-busy={exportStatus === 'in-progress'}
+              aria-label="Export offline data to SQL"
+            >
+              {exportStatus === 'in-progress' ? 'Exporting...' : 'Export Offline Data to SQL'}
+            </button>
+            {exportStatus !== 'idle' && (
+              <span
+                className={
+                  exportStatus === 'success' ? 'text-green-600' :
+                  exportStatus === 'error' ? 'text-red-600' :
+                  'text-gray-600'
+                }
+                aria-live="polite"
+              >
+                {exportMessage}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>
-  </div>
-));
+  );
+});
 
 const UsersTab = React.memo(() => (
   <div className="space-y-6">

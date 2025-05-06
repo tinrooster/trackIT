@@ -17,4 +17,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  optimizeDeps: {
+    exclude: ['react-dom/client']
+  }
 }) 

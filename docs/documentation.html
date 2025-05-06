@@ -103,6 +103,26 @@ trackIT/
       <li>See <code>DATABASE_SETUP.md</code> for full details on database setup and reconnection</li>
     </ul>
 
+    <h3>Database Reconnect & Sync</h3>
+    <ul>
+      <li><b>To reconnect or sync the MySQL database:</b></li>
+      <li>1. Ensure MySQL is running and the database exists.</li>
+      <li>2. Check <code>.env</code> for the correct <code>DATABASE_URL</code>.</li>
+      <li>3. From the project root, run:<br><code>pnpm prisma migrate dev</code></li>
+      <li>4. (Optional) Inspect data with:<br><code>pnpm prisma studio</code></li>
+      <li>5. Start the app:<br><code>cd refactored_trackit</code><br><code>pnpm tauri dev</code></li>
+      <li><b>Troubleshooting:</b> If tables are missing, ensure you run migrations from the project root and check your schema and <code>.env</code> settings.</li>
+    </ul>
+
+    <h3>Export Offline Data to SQL</h3>
+    <ul>
+      <li>To export offline/localStorage data (locations, assets) to the SQL database, use the <code>exportOfflineDataToSql</code> function in <code>src/lib/exportToSql.ts</code>.</li>
+      <li>This procedure logs all actions and errors to the console.</li>
+      <li>It checks for duplicates and only inserts missing records.</li>
+      <li>Usage: import and call <code>exportOfflineDataToSql()</code> in a Node.js script or from a UI action.</li>
+      <li>See code for details on supported fields and logging output.</li>
+    </ul>
+
     <h3>Tauri Commands</h3>
     <ul>
       <li>Asset Management
