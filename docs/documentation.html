@@ -97,10 +97,12 @@ trackIT/
     <h2>Backend Architecture</h2>
     <h3>Database Integration</h3>
     <ul>
-      <li>Uses Prisma with <b>MySQL</b> for data persistence</li>
-      <li>All models (User, Asset, Location, Project, Transaction, MaintenanceLog, Consumable) are defined in <code>prisma/schema.prisma</code></li>
-      <li>Run <code>pnpm prisma migrate dev</code> from the project root to apply schema changes</li>
-      <li>See <code>DATABASE_SETUP.md</code> for full details on database setup and reconnection</li>
+      <li><b>ORM Migration in Progress:</b> The backend is being migrated from Prisma to a new ORM for Rust/Tauri. Prisma-specific instructions below are deprecated.</li>
+      <li><span style="color: #888; text-decoration: line-through;">Uses Prisma with <b>MySQL</b> for data persistence</span></li>
+      <li><span style="color: #888; text-decoration: line-through;">All models (User, Asset, Location, Project, Transaction, MaintenanceLog, Consumable) are defined in <code>prisma/schema.prisma</code></span></li>
+      <li><span style="color: #888; text-decoration: line-through;">Run <code>pnpm prisma migrate dev</code> from the project root to apply schema changes</span></li>
+      <li><span style="color: #888; text-decoration: line-through;">See <code>DATABASE_SETUP.md</code> for full details on database setup and reconnection</span></li>
+      <li><b>New ORM integration steps will be documented here after migration is complete.</b></li>
     </ul>
 
     <h3>Database Reconnect & Sync</h3>
@@ -138,6 +140,40 @@ trackIT/
           <li>Configurable log levels</li>
         </ul>
       </li>
+    </ul>
+
+    <h2>Climb: MySQL Database Connection, Updates, and Logging</h2>
+    <h3>Type</h3>
+    <p>Task</p>
+    <h3>Description</h3>
+    <p>Build, test, and troubleshoot the MySQL database connection using Prisma. Ensure updates and inserts work, and that logging is functional. The framework exists, but the connection is not updating or inserting data.</p>
+    <h3>New Dependencies</h3>
+    <ul>
+      <li>None (unless troubleshooting reveals a missing package or driver; will confirm if needed)</li>
+    </ul>
+    <h3>Prerequisite Changes</h3>
+    <ul>
+      <li>MySQL server must be running and accessible</li>
+      <li>Prisma schema must match the MySQL schema</li>
+      <li>.env must have correct DATABASE_URL</li>
+    </ul>
+    <h3>Relevant Files</h3>
+    <ul>
+      <li><code>prisma/schema.prisma</code></li>
+      <li><code>.env</code></li>
+      <li>Any database connection utility (likely in <code>src/</code> or <code>refactored_trackit/</code>)</li>
+      <li>Logging implementation (Tauri plugin, backend, or Node.js)</li>
+    </ul>
+    <h3>Implementation & Testing</h3>
+    <ul>
+      <li>Confirm Prisma client is generated and up-to-date</li>
+      <li>Check for unapplied migrations</li>
+      <li>Validate that Prisma queries (create, update) are used correctly and errors are logged</li>
+      <li>Ensure logging captures connection errors, query failures, and successful updates/inserts</li>
+      <li>Test with sample data to verify updates and inserts</li>
+      <li>Review for known Prisma/MySQL issues (e.g., CHAR type mapping, driver adapter bugs)</li>
+      <li>Security: Validate input to prevent injection; do not log sensitive data</li>
+      <li>No new design or UI changes required</li>
     </ul>
   </section>
 
@@ -230,6 +266,16 @@ trackIT/
           <li>Ensured consistent path format across all navigation elements</li>
         </ul>
       </li>
+      <li>Fixed duplicate process kill error in <code>kill-trackit-ports.ps1</code>:
+        <ul>
+          <li>Script now tracks killed PIDs to avoid repeated <code>Stop-Process</code> calls and related errors.</li>
+        </ul>
+      </li>
+      <li>Resolved blank page and createRoot error:
+        <ul>
+          <li>Corrected the import path for <code>routeTree</code> in <code>frontend/src/main.tsx</code> to use <code>./routeTree.gen.ts</code> for proper ESM export resolution.</li>
+        </ul>
+      </li>
     </ul>
   </section>
 
@@ -286,6 +332,25 @@ trackIT/
       <li>Restored full CSS and formatting for the app</li>
       <li>Documented correct dev workflow for Vite + Tauri</li>
     </ul>
+  </section>
+
+  <section>
+    <h2>Admin Entity Management API & UI</h2>
+    <h3>API Endpoints</h3>
+    <ul>
+      <li><code>GET /api/location</code> - List all locations (admin only)</li>
+      <li><code>GET /api/project</code> - List all projects (admin only)</li>
+      <li><code>POST /api/entity</code> - Create or edit a location or project (admin only, body: <code>{ type, data, id? }</code>)</li>
+      <li><code>POST /api/entity/reorder</code> - Reorder locations or projects (admin only, body: <code>{ type, orderedIds }</code>)</li>
+    </ul>
+    <h3>React Component</h3>
+    <p><code>AdminEntityManager</code> provides a UI for admins to list, create, edit, and reorder locations and projects. It uses the above API endpoints and supports basic error handling and state management.</p>
+  </section>
+
+  <!-- Backend Logging Update -->
+  <section>
+    <h2>Backend Logging Location</h2>
+    <p>As of the latest update, backend logs such as <code>db_url_log.txt</code> are written to a <code>logs</code> directory in the project root. This directory is automatically created if it does not exist. Check <code>logs/db_url_log.txt</code> for environment variable and database connection debugging information.</p>
   </section>
 </body>
 </html> 
