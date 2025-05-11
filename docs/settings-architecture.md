@@ -56,3 +56,4 @@ The settings page is organized into several tabs:
 - Data Management
 
 Each tab uses components from the `src/components/settings/` directory. 
+

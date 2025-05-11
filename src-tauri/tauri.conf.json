@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.trackit.dev",
   "build": {
-    "frontendDist": "../dist",
+    "frontendDist": "../frontend/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "",
     "beforeBuildCommand": "pnpm build"
   },
   "app": {

@@ -7,115 +7,117 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  role      String   @default("STANDARD")
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  transactions     Transaction[]
-  maintenanceLogs  MaintenanceLog[]
-  assignedAssets   Asset[]
-}
-
-model Asset {
-  id                String    @id @default(uuid())
-  name              String
-  type              String
-  serialNumber      String    @unique
-  barcode           String    @unique
-  status            String    @default("AVAILABLE")
-  purchaseDate      DateTime
+model asset {
+  id                 String           @id
+  name               String
+  assignedToId       String?
+  barcode            String           @unique(map: "Asset_barcode_key")
+  createdAt          DateTime         @default(now())
+  lastMaintenance    DateTime?
+  locationId         String
+  nextMaintenance    DateTime?
+  notes              String?
+  projectId          String?
+  purchaseDate       DateTime
+  serialNumber       String           @unique(map: "Asset_serialNumber_key")
+  status             String           @default("AVAILABLE")
+  type               String
+  updatedAt          DateTime
   warrantyExpiration DateTime?
-  lastMaintenance   DateTime?
-  nextMaintenance   DateTime?
-  notes             String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  user               user?            @relation(fields: [assignedToId], references: [id], map: "Asset_assignedToId_fkey")
+  location           location         @relation(fields: [locationId], references: [id], map: "Asset_locationId_fkey")
+  project            project?         @relation(fields: [projectId], references: [id], map: "Asset_projectId_fkey")
+  maintenancelog     maintenancelog[]
+  transaction        transaction[]
 
-  // Relations
-  location          Location     @relation(fields: [locationId], references: [id])
-  locationId        String
-  assignedTo        User?        @relation(fields: [assignedToId], references: [id])
-  assignedToId      String?
-  project           Project?     @relation(fields: [projectId], references: [id])
-  projectId         String?
-  transactions      Transaction[]
-  maintenanceLogs   MaintenanceLog[]
+  @@index([assignedToId], map: "Asset_assignedToId_fkey")
+  @@index([locationId], map: "Asset_locationId_fkey")
+  @@index([projectId], map: "Asset_projectId_fkey")
 }
 
-model Location {
-  id              String    @id @default(uuid())
-  name            String
-  type            String
-  description     String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+model consumable {
+  id           String   @id
+  name         String
+  quantity     Int      @default(0)
+  reorderLevel Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  locationId   String
+  location     location @relation(fields: [locationId], references: [id], map: "Consumable_locationId_fkey")
 
-  // Relations
-  parentLocation  Location?  @relation("LocationHierarchy", fields: [parentLocationId], references: [id])
+  @@index([locationId], map: "Consumable_locationId_fkey")
+}
+
+model location {
+  id               String       @id
+  name             String
+  type             String
+  description      String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime
   parentLocationId String?
-  childLocations  Location[] @relation("LocationHierarchy")
-  assets          Asset[]
-  consumables     Consumable[]
+  order            Int?
+  asset            asset[]
+  consumable       consumable[]
+  location         location?    @relation("locationTolocation", fields: [parentLocationId], references: [id], map: "Location_parentLocationId_fkey")
+  other_location   location[]   @relation("locationTolocation")
+
+  @@index([parentLocationId], map: "Location_parentLocationId_fkey")
 }
 
-model Transaction {
-  id        String   @id @default(uuid())
-  type      String
-  dueDate   DateTime?
-  notes     String?
-  createdAt DateTime @default(now())
-
-  // Relations
-  asset     Asset    @relation(fields: [assetId], references: [id])
-  assetId   String
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-}
-
-model MaintenanceLog {
-  id                 String   @id @default(uuid())
-  description        String
-  cost              Float?
-  date              DateTime
+model maintenancelog {
+  id                  String    @id
+  description         String
+  cost                Float?
+  date                DateTime
   nextMaintenanceDate DateTime?
-  createdAt         DateTime @default(now())
+  createdAt           DateTime  @default(now())
+  assetId             String
+  performedById       String
+  asset               asset     @relation(fields: [assetId], references: [id], map: "MaintenanceLog_assetId_fkey")
+  user                user      @relation(fields: [performedById], references: [id], map: "MaintenanceLog_performedById_fkey")
 
-  // Relations
-  asset             Asset    @relation(fields: [assetId], references: [id])
-  assetId           String
-  performedBy       User     @relation(fields: [performedById], references: [id])
-  performedById     String
+  @@index([assetId], map: "MaintenanceLog_assetId_fkey")
+  @@index([performedById], map: "MaintenanceLog_performedById_fkey")
 }
 
-model Consumable {
-  id            String   @id @default(uuid())
-  name          String
-  quantity      Int      @default(0)
-  reorderLevel  Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  location      Location @relation(fields: [locationId], references: [id])
-  locationId    String
-}
-
-model Project {
-  id          String    @id @default(uuid())
+model project {
+  id          String    @id
   name        String
   description String?
   status      String    @default("PLANNED")
   startDate   DateTime?
   endDate     DateTime?
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime
+  order       Int?
+  asset       asset[]
+}
 
-  // Relations
-  assets      Asset[]
-} 
+model transaction {
+  id        String    @id
+  type      String
+  dueDate   DateTime?
+  notes     String?
+  createdAt DateTime  @default(now())
+  assetId   String
+  userId    String
+  asset     asset     @relation(fields: [assetId], references: [id], map: "Transaction_assetId_fkey")
+  user      user      @relation(fields: [userId], references: [id], map: "Transaction_userId_fkey")
+
+  @@index([assetId], map: "Transaction_assetId_fkey")
+  @@index([userId], map: "Transaction_userId_fkey")
+}
+
+model user {
+  id             String           @id
+  name           String
+  email          String           @unique(map: "User_email_key")
+  role           String           @default("STANDARD")
+  active         Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  asset          asset[]
+  maintenancelog maintenancelog[]
+  transaction    transaction[]
+}

@@ -1,0 +1,20 @@
+{
+  "framework": "react",
+  "typescript": true,
+  "projectName": ".",
+  "mode": "file-router",
+  "tailwind": true,
+  "packageManager": "npm",
+  "toolchain": "eslint+prettier",
+  "variableValues": {},
+  "git": true,
+  "version": 1,
+  "existingAddOns": [
+    "netlify",
+    "shadcn",
+    "t3env",
+    "table",
+    "tanstack-query",
+    "store"
+  ]
+}

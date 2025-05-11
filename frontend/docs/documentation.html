@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrackIT Inventory App Documentation</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; background: #f9f9f9; color: #222; }
+    h1, h2, h3 { color: #1a237e; }
+    section { margin-bottom: 2rem; }
+    .placeholder { color: #888; font-style: italic; }
+    code { background: #f0f0f0; padding: 0.2em 0.4em; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h1>TrackIT Inventory App Documentation</h1>
+
+  <section>
+    <h2>Overview</h2>
+    <p>TrackIT is an inventory management system for TV Engineering and IT departments, supporting asset tracking, project management, secure storage, and reporting. The app is designed for desktop (Tauri), PWA/mobile, and in-house/cloud deployment.</p>
+  </section>
+
+  <section>
+    <h2>Key Features</h2>
+    <ul>
+      <li>Asset tracking with unique IDs/barcodes</li>
+      <li>Check-in/check-out with user and project association</li>
+      <li>Location management (secure storage vs. general inventory)</li>
+      <li>User management and role-based access</li>
+      <li>Maintenance logs and scheduling</li>
+      <li>Consumables tracking and reorder alerts</li>
+      <li>Audit trail for all actions</li>
+      <li>Advanced search, filter, and reporting</li>
+      <li>Project tracking and asset assignment</li>
+      <li>User asset tagging and updates</li>
+      <li>Barcode/QR code scanning (PWA/mobile)</li>
+      <li>Bulk import/export</li>
+      <li>Notifications and alerts</li>
+      <li>API access for integration</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Entity/Data Model</h2>
+    <ul>
+      <li>Asset</li>
+      <li>User</li>
+      <li>Location</li>
+      <li>Project</li>
+      <li>Transaction</li>
+      <li>Maintenance</li>
+      <li>Consumable</li>
+      <li>Tag</li>
+      <li>AssetTag</li>
+    </ul>
+    <p class="placeholder">(Detailed schema to be added)</p>
+  </section>
+
+  <section>
+    <h2>Security & Access Control</h2>
+    <ul>
+      <li>Role-based access (admin, engineer, IT staff, etc.)</li>
+      <li>Restricted actions for secure storage</li>
+      <li>Audit logging of all changes</li>
+      <li>Authentication and authorization</li>
+      <li>Data encryption and secure connections (HTTPS)</li>
+    </ul>
+    <p class="placeholder">(Implementation details to be added)</p>
+  </section>
+
+  <section>
+    <h2>Reporting</h2>
+    <ul>
+      <li>Project-based asset and usage reports</li>
+      <li>Inventory and location reports</li>
+      <li>User activity and asset tagging reports</li>
+      <li>Custom and scheduled reports</li>
+    </ul>
+    <p class="placeholder">(Report templates and examples to be added)</p>
+  </section>
+
+  <section>
+    <h2>Project Structure</h2>
+    <pre>
+trackIT/
+  src/
+    app/                # App-specific logic (features)
+    components/         # Reusable UI components
+    contexts/          # React contexts for state management
+    hooks/             # Custom React hooks
+    lib/               # Utility libraries
+    routes/            # Route components and configurations
+      __root.tsx       # Root layout and configuration
+      index.tsx        # Home page route
+      assets.tsx       # Asset management routes
+      inventory.tsx    # Inventory management routes
+    types/             # TypeScript types/interfaces
+    utils/             # Utility functions
+    router.ts         # Centralized router configuration
+    main.tsx          # Application entry point
+  public/             # Static assets
+  src-tauri/          # Tauri backend (Rust)
+    src/
+      main.rs         # Tauri main process
+      commands.rs     # Tauri command definitions
+      db.rs          # Database connection handling
+      bin/
+        prisma.rs    # Prisma client generator
+    prisma/
+      schema.prisma  # Database schema definition
+    tauri.conf.json  # Tauri config
+  docs/               # Documentation
+  README.md
+  package.json
+    </pre>
+  </section>
+
+  <section>
+    <h2>Backend Architecture</h2>
+    <h3>Database Integration</h3>
+    <ul>
+      <li>Uses Prisma with SQLite for data persistence</li>
+      <li>Automatic client generation during build</li>
+      <li>Type-safe database operations</li>
+      <li>Migration support for schema changes</li>
+    </ul>
+
+    <h3>Tauri Commands</h3>
+    <ul>
+      <li>Asset Management
+        <ul>
+          <li><code>get_assets()</code> - Retrieve all assets with relations</li>
+          <li><code>get_asset(id: String)</code> - Get single asset by ID with relations</li>
+        </ul>
+      </li>
+      <li>Logging System
+        <ul>
+          <li>Integrated with tauri-plugin-log</li>
+          <li>Multi-target logging (stdout, file, webview)</li>
+          <li>Configurable log levels</li>
+          <li><strong>The logs page in Settings displays real backend logs, including audit, database, and SQL actions, as generated by the Tauri backend. This is a fully functional feature, not a mock.</strong></li>
+        </ul>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Recent Updates</h2>
+    <ul>
+      <li><strong>Module and Build System Overhaul:</strong>
+        <ul>
+          <li>Migrated all code to ESM (<code>export</code>/<code>import</code> syntax) for compatibility with modern tooling and Vite.</li>
+          <li>Removed all duplicate <code>.js</code> files where a <code>.tsx</code> or <code>.ts</code> version exists, ensuring only one source of truth per component/route.</li>
+          <li>Standardized all component and service exports: default exports for components imported as <code>import X from ...</code>, named exports for <code>import { X } from ...</code>.</li>
+          <li>Resolved all TanStack Router and Rollup import/export errors caused by mixed module systems or duplicate files.</li>
+        </ul>
+      </li>
+      <li>Resolved TanStack Router file-based routing errors:
+        <ul>
+          <li>Ensured all route components in <code>src/routes/</code> export their route definition as <code>export const Route</code>.</li>
+          <li>Corrected child routes to import the root route using the alias <code>import { Route as rootRoute } from './__root'</code>.</li>
+          <li>Removed manual route tree configuration in <code>src/routeTree.tsx</code> (now deleted) to rely solely on auto-generation.</li>
+          <li>Updated <code>src/main.tsx</code> to import <code>routeTree</code> from <code>./routeTree.gen</code> and initialize the router correctly.</li>
+        </ul>
+      </li>
+      <li>Refactored Asset Edit functionality:
+        <ul>
+          <li>Replaced separate Edit page with inline editing directly on the Asset Details page (<code>inventory.$assetId.tsx</code>).</li>
+          <li>Asset fields become editable in place when 'Edit' button is clicked.</li>
+          <li>Added 'Save' and 'Cancel' buttons in edit mode.</li>
+          <li>Ensured all relevant fields (including Location, Assigned To, Project) are editable.</li>
+          <li>Removed <code>inventory.$assetId.edit.tsx</code> route and component.</li>
+          <li>Removed unused import of deleted edit route from <code>AssetTable.tsx</code> and updated the table's action link.</li>
+          <li>Updated type definitions (<code>Project</code>, <code>AssetUpdateInput</code>, <code>Location</code>, <code>Asset</code>).</li>
+          <li>(TODO: Update route loader to fetch data for User/Location/Project dropdowns).</li>
+          <li>(TODO: Align backend mutation to accept <code>AssetUpdateInput</code> with relationship IDs).</li>
+        </ul>
+      </li>
+      <li>Enhanced inventory management UI:
+        <ul>
+          <li>Added specialized views for different asset types (basic view, IT assets view, expendables view)</li>
+          <li>Fixed header "Add Asset" button to properly navigate to the add asset page</li>
+          <li>Added confirmation dialog for asset deletion</li>
+          <li>Implemented proper edit functionality with dedicated edit route and form</li>
+          <li>Added ability to update inventory levels for expendable items</li>
+          <li>Improved location display in asset tables</li>
+          <li>Enhanced Asset type definition to include currentLevel property</li>
+        </ul>
+      </li>
+      <li>Complete architectural redesign to fix "Maximum call stack size exceeded" errors:
+        <ul>
+          <li>Created a static store system (<code>staticStore.ts</code>) to maintain application state in memory</li>
+          <li>Implemented an operation queue system (<code>operationQueue.ts</code>) with circuit breaker pattern</li>
+          <li>Built a safe storage service (<code>safeStorageService.ts</code>) with deferred backend synchronization</li>
+          <li>Completely rewrote settings components to use the new architecture</li>
+          <li>Implemented proper timeouts and retry mechanisms</li>
+          <li>Added comprehensive error handling with detailed error codes</li>
+          <li>Added graceful offline mode handling with automatic reconnection</li>
+          <li>Decoupled UI rendering from backend operations</li>
+          <li>Limited recursion depth in location path calculation</li>
+          <li>Added circuit breaker pattern to prevent cascading failures</li>
+          <li>Implemented proper cleanup for periodic operations</li>
+          <li>Added error boundaries for better error handling</li>
+        </ul>
+      </li>
+      <li>Fixed infinite loop and stack overflow issues in settings components:
+        <ul>
+          <li>Removed problematic periodic refresh in LocationSettings</li>
+          <li>Removed unnecessary state synchronization effect that caused infinite loops</li>
+          <li>Implemented proper cleanup with mountedRef in both components</li>
+          <li>Added ErrorBoundary for better error handling</li>
+          <li>Improved connection status handling and automatic reconnection</li>
+          <li>Added proper loading states and empty state handling</li>
+          <li>Enhanced form validation and error messaging</li>
+          <li>Added accessibility improvements</li>
+        </ul>
+      </li>
+      <li>Improved error handling and storage management:
+        <ul>
+          <li>Created a shared types file to break circular dependencies</li>
+          <li>Implemented proper StorageError class for consistent error handling</li>
+          <li>Added error codes and detailed error information</li>
+          <li>Improved offline storage error handling</li>
+          <li>Enhanced type safety across storage services</li>
+        </ul>
+      </li>
+      <li>Fixed Tauri command registration:
+        <ul>
+          <li>Added proper command registration in tauri.conf.json</li>
+          <li>Added command descriptions and documentation</li>
+          <li>Fixed command parameter types</li>
+          <li>Improved error handling in Tauri commands</li>
+        </ul>
+      </li>
+      <li>Optimized LocationSettings component:
+        <ul>
+          <li>Added proper cleanup for periodic connection checks using mountedRef</li>
+          <li>Implemented ErrorBoundary for better error handling</li>
+          <li>Memoized location processing functions for better performance</li>
+          <li>Added proper ARIA labels for accessibility</li>
+          <li>Improved loading states and empty state handling</li>
+          <li>Added validation for location deletion with child locations</li>
+          <li>Enhanced offline mode handling with automatic reconnection</li>
+        </ul>
+      </li>
+      <li>Fixed webkit2gtk dependency conflict by using tauri-plugin-log from v1 branch</li>
+      <li>Fixed duplicate command definitions in Rust backend</li>
+      <li>Implemented proper Prisma client generation</li>
+      <li>Resolved Tauri plugin compatibility issues</li>
+      <li>Fixed logging system integration</li>
+      <li>Added proper build script for Prisma client generation</li>
+      <li>Fixed dependency conflicts</li>
+      <li>Updated plugin versions for compatibility</li>
+      <li>Migrated location settings from localStorage to SQLite database</li>
+      <li>Added proper error handling and loading states for database operations</li>
+      <li>Implemented Tauri commands for location CRUD operations</li>
+      <li>Added offline support with localStorage fallback</li>
+      <li>Implemented automatic online/offline detection</li>
+      <li>Added connection status indicator</li>
+      <li>Added console logging for Add Asset button clicks:
+        <ul>
+          <li>Header: Logs to console when the Add Asset button is clicked.</li>
+          <li>Inventory Page: Logs to console when the Add Asset button is clicked.</li>
+        </ul>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Storage Implementation</h2>
+    <ul>
+      <li>Settings Storage
+        <ul>
+          <li>Primary: SQLite database through Prisma</li>
+          <li>Fallback: localStorage for offline support</li>
+          <li>Automatic online/offline detection</li>
+          <li>Seamless fallback to offline storage when database is unavailable</li>
+          <li>Periodic connection checks (every 30 seconds)</li>
+          <li>Visual indicator for connection status</li>
+          <li>Data persistence in both online and offline modes</li>
+          <li>Centralized storage service in <code>lib/storageService.ts</code></li>
+          <li>Offline storage service in <code>lib/fallbackStorageService.ts</code></li>
+          <li>Tauri commands for database operations in <code>src-tauri/src/commands.rs</code></li>
+          <li>Type-safe operations in both modes</li>
+        </ul>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Setup & Deployment</h2>
+    <p>Instructions for local development:</p>
+    <ol>
+      <li>Clone the repository</li>
+      <li>Install dependencies with <code>pnpm install</code></li>
+      <li>Run <code>pnpm tauri dev</code> for development</li>
+      <li>Build with <code>pnpm tauri build</code> for production</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Changelog</h2>
+    <p>For detailed changes and updates, see <a href="CHANGELOG.md">CHANGELOG.md</a></p>
+  </section>
+</body>
+</html> 
