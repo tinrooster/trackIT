@@ -97,12 +97,11 @@ trackIT/
     <h2>Backend Architecture</h2>
     <h3>Database Integration</h3>
     <ul>
-      <li><b>ORM Migration in Progress:</b> The backend is being migrated from Prisma to a new ORM for Rust/Tauri. Prisma-specific instructions below are deprecated.</li>
-      <li><span style="color: #888; text-decoration: line-through;">Uses Prisma with <b>MySQL</b> for data persistence</span></li>
-      <li><span style="color: #888; text-decoration: line-through;">All models (User, Asset, Location, Project, Transaction, MaintenanceLog, Consumable) are defined in <code>prisma/schema.prisma</code></span></li>
-      <li><span style="color: #888; text-decoration: line-through;">Run <code>pnpm prisma migrate dev</code> from the project root to apply schema changes</span></li>
-      <li><span style="color: #888; text-decoration: line-through;">See <code>DATABASE_SETUP.md</code> for full details on database setup and reconnection</span></li>
-      <li><b>New ORM integration steps will be documented here after migration is complete.</b></li>
+      <li><b>SeaORM is now used for MySQL database integration in the Rust/Tauri backend.</b></li>
+      <li>Prisma is fully removed. All new backend code uses SeaORM for async database access.</li>
+      <li>Set <code>DATABASE_URL</code> in your <code>.env</code> for MySQL connection.</li>
+      <li>See <code>src-tauri/src/db.rs</code> for the connection pool setup.</li>
+      <li>Models and queries should be implemented using SeaORM's Entity/Model/ActiveModel pattern.</li>
     </ul>
 
     <h3>Database Reconnect & Sync</h3>
@@ -174,6 +173,18 @@ trackIT/
       <li>Review for known Prisma/MySQL issues (e.g., CHAR type mapping, driver adapter bugs)</li>
       <li>Security: Validate input to prevent injection; do not log sensitive data</li>
       <li>No new design or UI changes required</li>
+    </ul>
+
+    <h3>Tauri Configuration & Troubleshooting</h3>
+    <ul>
+      <li><b>Only one <code>tauri.conf.json</code> should exist, in <code>src-tauri/</code>.</b></li>
+      <li>If you see <code>Input watch path is neither a file nor a directory</code>, check for and remove any extra <code>tauri.conf.json</code> (e.g., in <code>frontend/</code>).</li>
+      <li>Dev workflow:
+        <ol>
+          <li>In <code>frontend/</code>: <code>pnpm dev</code></li>
+          <li>In <code>src-tauri/</code>: <code>pnpm tauri dev</code></li>
+        </ol>
+      </li>
     </ul>
   </section>
 

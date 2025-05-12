@@ -1,3 +1,11 @@
+# Project Notes
+
+- Only one `tauri.conf.json` should exist, in `src-tauri/`.
+- If you see `Input watch path is neither a file nor a directory`, check for and remove any extra `tauri.conf.json` (e.g., in `frontend/`).
+- Dev workflow:
+  1. In `frontend/`: `pnpm dev`
+  2. In `src-tauri/`: `pnpm tauri dev`
+
 # TrackIT Inventory App
 
 **Note:** The new refactored project is being scaffolded in a separate directory called `refactored_trackit` to ensure a clear separation from the legacy codebase. All new development and refactoring will occur in this directory, while the existing code remains unchanged for reference and migration purposes.
