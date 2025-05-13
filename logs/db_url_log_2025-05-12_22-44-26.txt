@@ -1,0 +1,2 @@
+[2025-05-12 22:44:26] DATABASE_URL: mysql://root:password@localhost:3306/trackit_db
+[2025-05-12 22:44:26] Startup OK

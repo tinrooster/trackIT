@@ -3,17 +3,16 @@
 
 mod commands;
 mod db;
+pub mod entity;
 
-use commands::{
-    get_assets, get_asset, get_locations, create_location, delete_location,
-    get_projects, create_project, delete_project, test_log_entry, create_asset
-};
+use commands::get_assets;
+use tauri_plugin_log::{LogTarget, Builder as LogBuilder};
 use tauri::Builder;
-use tauri_plugin_log::{LogTarget, LoggerBuilder};
 use std::env;
 use std::fs::{self, File};
 use std::io::Write;
 use chrono::Local;
+use crate::commands::{create_location, create_project};
 
 fn main() {
     // Logging setup (startup file log)
@@ -51,25 +50,14 @@ fn main() {
     println!("[{}] Startup OK", ts);
 
     // Enable tauri-plugin-log for all actions
-    let logger = LoggerBuilder::new()
+    let logger = LogBuilder::new()
         .targets([LogTarget::Stdout, LogTarget::LogDir])
         .level(log::LevelFilter::Info)
         .build();
 
     Builder::default()
         .plugin(logger)
-        .invoke_handler(tauri::generate_handler![
-            get_assets,
-            get_asset,
-            get_locations,
-            create_location,
-            delete_location,
-            get_projects,
-            create_project,
-            delete_project,
-            test_log_entry,
-            create_asset
-        ])
+        .invoke_handler(tauri::generate_handler![get_assets, create_location, create_project])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 } 

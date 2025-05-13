@@ -189,6 +189,59 @@ trackIT/
   </section>
 
   <section>
+    <h2>Climb: Offline-to-SQL Sync for Settings, Projects, and Locations</h2>
+    <h3>Type</h3>
+    <p>Feature</p>
+    <h3>Description</h3>
+    <p>Fix and enhance the offline-to-SQL sync mechanism for settings, projects, and locations. Ensure all CRUD operations sync reliably between localStorage and the SQL database, with robust logging and tests. Implement a solid offline fallback and automatic re-sync when the connection is restored.</p>
+    <h3>New Dependencies</h3>
+    <ul>
+      <li>None anticipated unless improved logging or testing requires it.</li>
+    </ul>
+    <h3>Prerequisite Changes</h3>
+    <ul>
+      <li>MySQL server must be running and accessible</li>
+      <li>Prisma schema and .env must be correct</li>
+      <li>Identify and review the current offline/localStorage and sync logic</li>
+    </ul>
+    <h3>Relevant Files</h3>
+    <ul>
+      <li><code>prisma/schema.prisma</code></li>
+      <li><code>.env</code></li>
+      <li><code>frontend/src/lib/operationQueue.ts</code></li>
+      <li><code>frontend/src/components/settings/LocationSettings.tsx</code></li>
+      <li><code>frontend/src/components/settings/ProjectSettings.tsx</code></li>
+      <li>Any backend sync utilities</li>
+      <li>Logging implementation (backend, Tauri, or Node.js)</li>
+      <li>Test files for sync logic</li>
+    </ul>
+    <h3>Requirements</h3>
+    <ul>
+      <li>Ensure all CRUD operations for settings, projects, and locations sync reliably to SQL</li>
+      <li>If offline, changes are stored in localStorage and retried until successful</li>
+      <li>Add comprehensive logging for all sync attempts, successes, and failures</li>
+      <li>Implement tests to verify correct behavior, including offline/online transitions</li>
+      <li>Provide clear user feedback if the app is offline or syncing</li>
+    </ul>
+    <h3>User Flow</h3>
+    <ol>
+      <li>User creates/edits/deletes a setting, project, or location</li>
+      <li>If online, operation is performed on SQL and logged</li>
+      <li>If offline, operation is stored locally and retried until successful</li>
+      <li>When connection is restored, pending changes are synced and logged</li>
+      <li>User receives feedback on sync status</li>
+    </ol>
+    <h3>Testing</h3>
+    <ul>
+      <li>Unit and integration tests for all sync operations</li>
+      <li>Simulate offline/online transitions and verify correct sync and logging</li>
+      <li>Test error handling and user feedback</li>
+    </ul>
+    <h3>Added automatic re-sync: Offline changes to settings, projects, and locations are now automatically synced to SQL when the app returns online, with robust logging and no user intervention required.</h3>
+    <li>All sync attempts, successes, retries, and failures are now logged in detail for both the operation queue and offline-to-SQL sync operations.</li>
+  </section>
+
+  <section>
     <h2>Recent Updates</h2>
     <ul>
       <li>Fixed routing issue for Asset Details Edit button:
@@ -362,6 +415,14 @@ trackIT/
   <section>
     <h2>Backend Logging Location</h2>
     <p>As of the latest update, backend logs such as <code>db_url_log.txt</code> are written to a <code>logs</code> directory in the project root. This directory is automatically created if it does not exist. Check <code>logs/db_url_log.txt</code> for environment variable and database connection debugging information.</p>
+  </section>
+
+  <section>
+    <h2>Tauri Plugin Log for v1.5.x</h2>
+    <p>For Tauri 1.5.x, use the <code>tauri-plugin-log</code> plugin from the v1 git branch, not from crates.io. In your <code>Cargo.toml</code> dependencies section, use:</p>
+    <pre><code>tauri-plugin-log = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
+</code></pre>
+    <p>Do <b>not</b> use <code>tauri-plugin-log = "^1.5"</code> or any version from crates.io, as only 2.x versions are available there now.</p>
   </section>
 </body>
 </html> 

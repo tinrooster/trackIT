@@ -1,0 +1,31 @@
+{
+  "Climb": "ef12",
+  "moves": [
+    {
+      "status": "todo",
+      "description": "Audit and document the current offline/localStorage and SQL sync logic for settings, projects, and locations.",
+      "details": "Identify all relevant code paths and document current behavior."
+    },
+    {
+      "status": "todo",
+      "description": "Fix and refactor the sync mechanism to ensure reliable CRUD operations between localStorage and SQL.",
+      "details": "Implement robust offline fallback and automatic re-sync when online."
+    },
+    {
+      "status": "todo",
+      "description": "Add comprehensive logging for all sync attempts, successes, and failures.",
+      "details": "Ensure logs are accessible for debugging and troubleshooting.",
+      "rest": true
+    },
+    {
+      "status": "todo",
+      "description": "Implement and run unit/integration tests for all sync operations, including offline/online transitions.",
+      "details": "Verify correct sync, error handling, and user feedback."
+    },
+    {
+      "status": "todo",
+      "description": "Document the new sync logic and update user/developer documentation.",
+      "details": "Ensure all changes are reflected in the docs."
+    }
+  ]
+} 

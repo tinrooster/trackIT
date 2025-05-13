@@ -1,4 +1,4 @@
-import { safeInvoke, enqueueOperation } from './operationQueue';
+import { safeInvoke, enqueueOperation, registerOnlineHandler } from './operationQueue';
 import { 
   getLocations, 
   updateLocations, 
@@ -13,7 +13,7 @@ import {
 } from './staticStore';
 import { Location, Project, StorageError, LocationData, ProjectData } from './types';
 import { isOffline as checkOfflineStorage, setOfflineMode as setOfflineStorageMode, 
-  createOfflineLocation, deleteOfflineLocation } from './fallbackStorageService';
+  createOfflineLocation, deleteOfflineLocation, getOfflineSettings } from './fallbackStorageService';
 
 // Initial loading state
 let isLoadingLocations = false;
@@ -313,4 +313,60 @@ export async function deleteSafeProject(id: string): Promise<Project> {
       }
     );
   });
-} 
+}
+
+// Helper: Sync offline locations to SQL
+async function syncOfflineLocationsToSql() {
+  const { locations } = getOfflineSettings();
+  const offlineLocations = locations.filter(loc => loc.id.startsWith('offline_'));
+  if (offlineLocations.length === 0) {
+    console.info('[Sync] No offline locations to sync.');
+    return;
+  }
+  for (const loc of offlineLocations) {
+    try {
+      console.info(`[Sync] Attempting to sync offline location: ${loc.name}`);
+      await createSafeLocation({
+        name: loc.name,
+        type: loc.type,
+        parentId: loc.parentId
+      });
+      removeLocation(loc.id);
+      console.info(`[Sync] Location synced to SQL: ${loc.name}`);
+    } catch (err) {
+      console.error(`[Sync] Failed to sync location: ${loc.name}`, err);
+    }
+  }
+}
+
+// Helper: Sync offline projects to SQL
+async function syncOfflineProjectsToSql() {
+  const offlineProjects = getProjects().filter(p => p.id.startsWith('offline_'));
+  if (offlineProjects.length === 0) {
+    console.info('[Sync] No offline projects to sync.');
+    return;
+  }
+  for (const proj of offlineProjects) {
+    try {
+      console.info(`[Sync] Attempting to sync offline project: ${proj.name}`);
+      await createSafeProject({
+        name: proj.name,
+        description: proj.description,
+        status: proj.status,
+        startDate: proj.startDate,
+        endDate: proj.endDate
+      });
+      removeProject(proj.id);
+      console.info(`[Sync] Project synced to SQL: ${proj.name}`);
+    } catch (err) {
+      console.error(`[Sync] Failed to sync project: ${proj.name}`, err);
+    }
+  }
+}
+
+// Register online handler for automatic re-sync
+registerOnlineHandler(async () => {
+  console.log('[Sync] Online detected, attempting to sync offline data to SQL...');
+  await syncOfflineLocationsToSql();
+  await syncOfflineProjectsToSql();
+}); 

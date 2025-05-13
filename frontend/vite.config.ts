@@ -11,7 +11,7 @@ export default defineConfig({
   server: {
     host: true, // Listen on all local IPs
     port: 5173,
-    strictPort: false,
+    strictPort: true,
   },
   build: {
     outDir: 'dist',

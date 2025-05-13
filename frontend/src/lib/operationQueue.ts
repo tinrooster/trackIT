@@ -30,6 +30,20 @@ function getNextOperationId(): string {
   return `op_${Date.now()}_${operationCounter++}`;
 }
 
+// Online event handler registration
+let onlineHandler: (() => void) | null = null;
+
+export function registerOnlineHandler(handler: () => void) {
+  onlineHandler = handler;
+}
+
+// Listen for online event
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('online', () => {
+    if (onlineHandler) onlineHandler();
+  });
+}
+
 // Add operation to queue
 export function enqueueOperation<T>(
   execute: () => Promise<T>,
@@ -37,6 +51,7 @@ export function enqueueOperation<T>(
   onError?: (error: Error) => void
 ): string {
   const opId = getNextOperationId();
+  console.info(`[Queue] Enqueuing operation: ${opId}`);
   
   operationQueue.push({
     id: opId,
@@ -72,7 +87,7 @@ function isCircuitOpen(): boolean {
 
 // Reset circuit breaker
 function resetCircuitBreaker(): void {
-  console.log('Circuit breaker reset');
+  console.warn('[Queue] Circuit breaker reset');
   failureCount = 0;
   isPaused = false;
   processNextOperation();
@@ -80,7 +95,7 @@ function resetCircuitBreaker(): void {
 
 // Trip circuit breaker
 function tripCircuitBreaker(): void {
-  console.warn('Circuit breaker tripped - pausing operations');
+  console.warn('[Queue] Circuit breaker tripped - pausing operations');
   isPaused = true;
   setOffline(true);
   
@@ -97,6 +112,7 @@ function processNextOperation(): void {
   
   if (isCircuitOpen()) {
     isPaused = true;
+    console.warn('[Queue] Circuit breaker open, pausing operations');
     setTimeout(resetCircuitBreaker, CIRCUIT_RESET_TIMEOUT);
     return;
   }
@@ -114,16 +130,17 @@ function processNextOperation(): void {
       .then(result => {
         // Success - reset failure counter
         failureCount = Math.max(0, failureCount - 1);
+        console.info(`[Queue] Operation ${operation.id} succeeded`);
         operation.onSuccess(result);
       })
       .catch(error => {
         // Track failures for circuit breaker
         failureCount++;
-        console.error(`Operation ${operation.id} failed (attempt ${operation.retryCount + 1}):`, error);
+        console.error(`[Queue] Operation ${operation.id} failed (attempt ${operation.retryCount + 1}):`, error);
         
         // Check if we should retry
         if (operation.retryCount < operation.maxRetries) {
-          console.log(`Retrying operation ${operation.id} (attempt ${operation.retryCount + 1})`);
+          console.warn(`[Queue] Retrying operation ${operation.id} (attempt ${operation.retryCount + 1})`);
           // Re-queue with incremented retry count
           operationQueue.unshift({
             ...operation,
@@ -148,7 +165,7 @@ function processNextOperation(): void {
       });
   } catch (error) {
     failureCount++;
-    console.error('Error executing operation:', error);
+    console.error('[Queue] Error executing operation:', error);
     operation.onError(error instanceof Error ? error : new StorageError(String(error)));
     
     if (isCircuitOpen()) {
