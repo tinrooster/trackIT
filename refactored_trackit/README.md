@@ -39,18 +39,6 @@ npm run format
 npm run check
 ```
 
-## Setting up Netlify
-
-First install the Netlify CLI with:
-
-```bash
-npm install -g netlify-cli`
-```
-
-```bash
-netlify init
-```
-
 ## Shadcn
 
 Add components using the latest version of [Shadcn](https://ui.shadcn.com/).

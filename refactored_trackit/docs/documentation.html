@@ -102,12 +102,6 @@ trackIT/
   src-tauri/          # Tauri backend (Rust)
     src/
       main.rs         # Tauri main process
-      commands.rs     # Tauri command definitions
-      db.rs          # Database connection handling
-      bin/
-        prisma.rs    # Prisma client generator
-    prisma/
-      schema.prisma  # Database schema definition
     tauri.conf.json  # Tauri config
   docs/               # Documentation
   README.md
@@ -117,12 +111,9 @@ trackIT/
 
   <section>
     <h2>Backend Architecture</h2>
-    <h3>Database Integration</h3>
+    <h3>Data Storage</h3>
     <ul>
-      <li>Uses Prisma with SQLite for data persistence</li>
-      <li>Automatic client generation during build</li>
-      <li>Type-safe database operations</li>
-      <li>Migration support for schema changes</li>
+      <li>Settings and project data are stored locally (localStorage) in the app</li>
     </ul>
 
     <h3>Tauri Commands</h3>
@@ -245,10 +236,8 @@ trackIT/
       </li>
       <li>Fixed webkit2gtk dependency conflict by using tauri-plugin-log from v1 branch</li>
       <li>Fixed duplicate command definitions in Rust backend</li>
-      <li>Implemented proper Prisma client generation</li>
       <li>Resolved Tauri plugin compatibility issues</li>
       <li>Fixed logging system integration</li>
-      <li>Added proper build script for Prisma client generation</li>
       <li>Fixed dependency conflicts</li>
       <li>Updated plugin versions for compatibility</li>
       <li>Migrated location settings from localStorage to SQLite database</li>
@@ -271,10 +260,7 @@ trackIT/
     <ul>
       <li>Settings Storage
         <ul>
-          <li>Primary: SQLite database through Prisma</li>
-          <li>Fallback: localStorage for offline support</li>
-          <li>Automatic online/offline detection</li>
-          <li>Seamless fallback to offline storage when database is unavailable</li>
+          <li>localStorage</li>
           <li>Periodic connection checks (every 30 seconds)</li>
           <li>Visual indicator for connection status</li>
           <li>Data persistence in both online and offline modes</li>

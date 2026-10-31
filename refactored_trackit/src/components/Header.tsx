@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { applicationModules } from '../config/appModules'
 
 export const Header = () => {
   return (
@@ -16,12 +17,15 @@ export const Header = () => {
               >
                 Home
               </Link>
-              <Link
-                to="/inventory"
-                className="inline-flex items-center px-1 pt-1 text-gray-900"
-              >
-                Inventory
-              </Link>
+              {applicationModules.map((module) => (
+                <Link
+                  key={module.id}
+                  to={module.to}
+                  className="inline-flex items-center px-1 pt-1 text-gray-900"
+                >
+                  {module.label}
+                </Link>
+              ))}
             </nav>
           </div>
           <div className="flex items-center">

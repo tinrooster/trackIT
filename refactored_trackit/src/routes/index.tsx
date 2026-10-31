@@ -1,6 +1,6 @@
-import { createRoute } from '@tanstack/react-router'
+import { Link, createRoute } from '@tanstack/react-router'
+import { applicationModules } from '../config/appModules'
 import { Route as rootRoute } from './__root'
-import { Link } from '@tanstack/react-router'
 
 // Rename export from indexRoute to Route
 export const Route = createRoute({
@@ -22,35 +22,18 @@ function HomePage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-4xl mx-auto mt-12">
-        <Link
-          to="/inventory"
-          className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
-        >
-          <h2 className="text-xl font-semibold mb-2">Inventory Management</h2>
-          <p className="text-gray-600">
-            Track and manage all your equipment and assets
-          </p>
-        </Link>
-
-        <Link
-          to="/reports"
-          className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
-        >
-          <h2 className="text-xl font-semibold mb-2">Reports</h2>
-          <p className="text-gray-600">
-            Generate insights and track inventory metrics
-          </p>
-        </Link>
-
-        <Link
-          to="/settings"
-          className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
-        >
-          <h2 className="text-xl font-semibold mb-2">Settings</h2>
-          <p className="text-gray-600">
-            Configure application settings and preferences
-          </p>
-        </Link>
+        {applicationModules.map((module) => (
+          <Link
+            key={module.id}
+            to={module.to}
+            className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+          >
+            <h2 className="text-xl font-semibold mb-2">{module.title}</h2>
+            <p className="text-gray-600">
+              {module.description}
+            </p>
+          </Link>
+        ))}
       </div>
     </div>
   )

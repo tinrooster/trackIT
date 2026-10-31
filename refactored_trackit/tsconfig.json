@@ -8,8 +8,7 @@
     "postcss.config.cjs",
     "prettier.config.js",
     "tailwind.config.cjs",
-    "vite.config.js",
-    "prisma"
+    "vite.config.js"
   ],
 
   "compilerOptions": {

@@ -2,6 +2,8 @@
 
 **Note:** The new refactored project is being scaffolded in a separate directory called `refactored_trackit` to ensure a clear separation from the legacy codebase. All new development and refactoring will occur in this directory, while the existing code remains unchanged for reference and migration purposes.
 
+**Canonical path:** the refactored app lives at `C:\Users\ach\projects\kgo\trackit2`.
+
 TrackIT is a modern, responsive inventory management system built with React, TypeScript, and Tailwind CSS. It provides a comprehensive solution for tracking inventory items, managing stock levels, and generating reports.
 
 ## Features
