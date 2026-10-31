@@ -73,6 +73,7 @@ If you need to reestablish or reconnect the database (e.g., after a fresh clone 
 ---
 
 ## Notes
-- All migrations and Prisma commands must be run from the project root (`/trackIT`).
-- The Tauri app and frontend are run from `/trackIT/refactored_trackit`.
+- The canonical root of the refactored app is `C:\Users\ach\projects\kgo\trackit2` (the `refactored_trackit` directory in this repository).
+- The Tauri app and frontend are run from that canonical root.
+- All migrations and Prisma commands must be run from the repository root that contains the `prisma/` directory.
 - For advanced DB management, use MySQL Workbench or `pnpm prisma studio`. 
