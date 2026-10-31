@@ -95,23 +95,9 @@ trackIT/
 
   <section>
     <h2>Backend Architecture</h2>
-    <h3>Database Integration</h3>
+    <h3>Data Storage</h3>
     <ul>
-      <li>Uses Prisma with <b>MySQL</b> for data persistence</li>
-      <li>All models (User, Asset, Location, Project, Transaction, MaintenanceLog, Consumable) are defined in <code>prisma/schema.prisma</code></li>
-      <li>Run <code>pnpm prisma migrate dev</code> from the project root to apply schema changes</li>
-      <li>See <code>DATABASE_SETUP.md</code> for full details on database setup and reconnection</li>
-    </ul>
-
-    <h3>Database Reconnect & Sync</h3>
-    <ul>
-      <li><b>To reconnect or sync the MySQL database:</b></li>
-      <li>1. Ensure MySQL is running and the database exists.</li>
-      <li>2. Check <code>.env</code> for the correct <code>DATABASE_URL</code>.</li>
-      <li>3. From the project root, run:<br><code>pnpm prisma migrate dev</code></li>
-      <li>4. (Optional) Inspect data with:<br><code>pnpm prisma studio</code></li>
-      <li>5. Start the app:<br><code>cd refactored_trackit</code><br><code>pnpm tauri dev</code></li>
-      <li><b>Troubleshooting:</b> If tables are missing, ensure you run migrations from the project root and check your schema and <code>.env</code> settings.</li>
+      <li>Settings and project data are stored locally (localStorage) in the app</li>
     </ul>
 
     <h3>Export Offline Data to SQL</h3>
@@ -192,10 +178,8 @@ trackIT/
       </li>
       <li>Fixed webkit2gtk dependency conflict by using tauri-plugin-log from v1 branch</li>
       <li>Fixed duplicate command definitions in Rust backend</li>
-      <li>Implemented proper Prisma client generation</li>
       <li>Resolved Tauri plugin compatibility issues</li>
       <li>Fixed logging system integration</li>
-      <li>Added proper build script for Prisma client generation</li>
       <li>Fixed dependency conflicts</li>
       <li>Updated plugin versions for compatibility</li>
       <li>Migrated location settings from localStorage to SQLite database</li>
@@ -238,10 +222,7 @@ trackIT/
     <ul>
       <li>Settings Storage
         <ul>
-          <li>Primary: MySQL database through Prisma</li>
-          <li>Fallback: localStorage for offline support</li>
-          <li>Automatic online/offline detection</li>
-          <li>Seamless fallback to offline storage when database is unavailable</li>
+          <li>localStorage</li>
           <li>Periodic connection checks (every 30 seconds)</li>
           <li>Visual indicator for connection status</li>
           <li>Data persistence in both online and offline modes</li>

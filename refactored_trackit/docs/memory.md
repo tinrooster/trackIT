@@ -206,8 +206,6 @@
 ### 1. Data Layer Implementation
 - [ ] Create Asset type definitions in `src/types/asset.ts`
 - [ ] Implement asset service in `src/services/asset.service.ts`
-- [ ] Set up Prisma schema for database models
-- [ ] Create database migrations
 - [ ] Implement CRUD operations for assets
 
 ### 2. Authentication & Authorization

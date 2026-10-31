@@ -13,11 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Properly imported commands from `commands.rs` module
   - Fixed command handler registration
 
-- Fixed Prisma client integration
-  - Added proper Prisma client generation in build script
-  - Updated Prisma client dependencies
-  - Added binary for Prisma code generation
-
 - Fixed Tauri plugin compatibility issues
   - Updated tauri-plugin-log to use v1 branch for Tauri 1.x compatibility
   - Resolved dependency conflicts with webkit2gtk

@@ -8,5 +8,5 @@
     "strict": true,
     "target": "ES2020"
   },
-  "include": ["prisma"]
+  "include": ["vite.config.ts"]
 } 
