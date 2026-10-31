@@ -45,6 +45,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@tanstack/eslint-config": "^0.1.0",
     "@tanstack/router-cli": "^1.117.1",
     "@tauri-apps/cli": "^1.5.9",

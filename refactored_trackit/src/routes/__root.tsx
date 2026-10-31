@@ -1,8 +1,9 @@
 import * as React from 'react';
-import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
+import { Link, Outlet, createRootRoute } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import NotFound from '../components/NotFound';
+import { applicationModules } from '../config/appModules';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,33 +30,18 @@ function RootLayout() {
                   TrackIT
                 </Link>
                 <div className="hidden md:flex space-x-4">
-                  <Link
-                    to="/inventory"
-                    className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                    activeProps={{
-                      className: 'text-blue-600 hover:text-blue-700',
-                    }}
-                  >
-                    Inventory
-                  </Link>
-                  <Link
-                    to="/reports"
-                    className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                    activeProps={{
-                      className: 'text-blue-600 hover:text-blue-700',
-                    }}
-                  >
-                    Reports
-                  </Link>
-                  <Link
-                    to="/settings"
-                    className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                    activeProps={{
-                      className: 'text-blue-600 hover:text-blue-700',
-                    }}
-                  >
-                    Settings
-                  </Link>
+                  {applicationModules.map((module) => (
+                    <Link
+                      key={module.id}
+                      to={module.to}
+                      className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                      activeProps={{
+                        className: 'text-blue-600 hover:text-blue-700',
+                      }}
+                    >
+                      {module.label}
+                    </Link>
+                  ))}
                 </div>
               </div>
               <div className="flex items-center space-x-4">
